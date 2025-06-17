@@ -2,6 +2,7 @@
 # Automatically generated file; DO NOT EDIT.
 # Linux/arm 3.18.140 Kernel Configuration
 #
+CONFIG_KSU_MANUAL_HOOK=y
 CONFIG_KSU=y
 CONFIG_OVERLAY_FS=y
 CONFIG_ARM=y
