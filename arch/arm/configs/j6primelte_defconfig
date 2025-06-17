@@ -2,6 +2,8 @@
 # Automatically generated file; DO NOT EDIT.
 # Linux/arm 3.18.140 Kernel Configuration
 #
+CONFIG_KSU=y
+CONFIG_OVERLAY_FS=y
 CONFIG_ARM=y
 CONFIG_ARM_HAS_SG_CHAIN=y
 CONFIG_NEED_SG_DMA_LENGTH=y
