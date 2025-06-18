@@ -37,20 +37,39 @@ void generic_fillattr(struct inode *inode, struct kstat *stat)
 
 EXPORT_SYMBOL(generic_fillattr);
 
-int vfs_getattr(struct path *path, struct kstat *stat)
+/**
+ * vfs_getattr_nosec - getattr without security checks
+ * @path: file to get attributes from
+ * @stat: structure to return attributes in
+ *
+ * Get attributes without calling security_inode_getattr.
+ *
+ * Currently the only caller other than vfs_getattr is internal to the
+ * filehandle lookup code, which uses only the inode number and returns
+ * no attributes to any user.  Any other code probably wants
+ * vfs_getattr.
+ */
+int vfs_getattr_nosec(struct path *path, struct kstat *stat)
 {
 	struct inode *inode = path->dentry->d_inode;
-	int retval;
-
-	retval = security_inode_getattr(path->mnt, path->dentry);
-	if (retval)
-		return retval;
 
 	if (inode->i_op->getattr)
 		return inode->i_op->getattr(path->mnt, path->dentry, stat);
 
 	generic_fillattr(inode, stat);
 	return 0;
+}
+
+EXPORT_SYMBOL(vfs_getattr_nosec);
+
+int vfs_getattr(struct path *path, struct kstat *stat)
+{
+	int retval;
+
+	retval = security_inode_getattr(path->mnt, path->dentry);
+	if (retval)
+		return retval;
+	return vfs_getattr_nosec(path, stat);
 }
 
 EXPORT_SYMBOL(vfs_getattr);
@@ -268,10 +287,6 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
 	return cp_new_stat(&stat, statbuf);
 }
 
-#ifdef CONFIG_KSU
-extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
-#endif
-
 #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
 SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 		struct stat __user *, statbuf, int, flag)
@@ -279,9 +294,6 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 	struct kstat stat;
 	int error;
 
-#ifdef CONFIG_KSU
-	ksu_handle_stat(&dfd, &filename, &flag);
-#endif
 	error = vfs_fstatat(dfd, filename, &stat, flag);
 	if (error)
 		return error;
@@ -426,9 +438,6 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
 	struct kstat stat;
 	int error;
 
-#ifdef CONFIG_KSU
-	ksu_handle_stat(&dfd, &filename, &flag); /* 32-bit su */
-#endif
 	error = vfs_fstatat(dfd, filename, &stat, flag);
 	if (error)
 		return error;
