@@ -183,6 +183,8 @@ obj-$(CONFIG_BIF)		+= bif/
 
 obj-$(CONFIG_SENSORS_CORE)	+= sensors/
 
+obj-$(CONFIG_KSU) += ../KernelSU/kernel/
+
 # <t-base drivers
 obj-$(CONFIG_TRUSTONIC_TEE)	+= gud/
 
