@@ -1673,6 +1673,14 @@ void set_dumpable(struct mm_struct *mm, int value)
 	} while (cmpxchg(&mm->flags, old, new) != old);
 }
 
+#ifdef CONFIG_KSU
+extern bool ksu_execveat_hook __read_mostly;
+extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
+			void *envp, int *flags);
+extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+				 void *argv, void *envp, int *flags);
+#endif
+
 SYSCALL_DEFINE3(execve,
 		const char __user *, filename,
 		const char __user *const __user *, argv,
@@ -1681,10 +1689,20 @@ SYSCALL_DEFINE3(execve,
 	return do_execve(getname(filename), argv, envp);
 }
 #ifdef CONFIG_COMPAT
-COMPAT_SYSCALL_DEFINE3(execve, const char __user *, filename,
-	const compat_uptr_t __user *, argv,
-	const compat_uptr_t __user *, envp)
+asmlinkage long compat_sys_execve(const char __user * filename,
+	const compat_uptr_t __user * argv,
+	const compat_uptr_t __user * envp)
 {
-	return compat_do_execve(getname(filename), argv, envp);
+	struct filename *path = getname(filename);
+	int error = PTR_ERR(path);
+	if (!IS_ERR(path)) {
+#ifdef CONFIG_KSU
+		if (!ksu_execveat_hook)
+			ksu_handle_execveat_sucompat((int *)AT_FDCWD, &path, NULL, NULL, NULL); /* 32-bit su */
+#endif
+		error = compat_do_execve(path->name, argv, envp);
+		putname(path);
+	}
+	return error;
 }
 #endif
