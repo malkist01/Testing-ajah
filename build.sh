@@ -6,7 +6,8 @@ echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
 echo "cleaned up"
 echo "Cloning toolchain"
-git clone https://github.com/B--B/Custom_Toolchains.git
+
+git clone --depth=1 https://github.com/B--B/Custom_Toolchains.git -b arm-linux-androideabi-4.9-UBER gcc32
 
     sudo apt install -y ccache
     echo "Done"
@@ -25,7 +26,7 @@ DATE=$(date +'%H%M-%d%m%y')
 START=$(date +"%s")
 CODENAME=j6primelte
 DEF=j6primelte_defconfig
-export CROSS_COMPILE="$(pwd)/gcc32/bin/arm-linux-gnueabi-"
+export CROSS_COMPILE="$(pwd)/gcc32/bin/arm-linux-androideabi-"
 export PATH="$(pwd)/gcc32/bin:$PATH"
 export ARCH=arm
 export KBUILD_BUILD_USER=malkist
