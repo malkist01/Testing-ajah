@@ -7,8 +7,8 @@ rm -rf toolchain out AnyKernel
 echo "cleaned up"
 echo "Cloning toolchain"
       mkdir -p "gcc32"
-      curl -Lo WeebX-Clang-20.0.0git.tar.gz "https://releases.linaro.org/components/toolchain/binaries/latest-4/arm-linux-gnueabi/gcc-linaro-4.9-2017.01.tar.xz"
-      tar -zxf WeebX-Clang-20.0.0git.tar.gz -C "gcc32" --strip-components=1
+      curl -Lo gcc-linaro-4.9-2017.01.tar.xz "https://releases.linaro.org/components/toolchain/binaries/latest-4/arm-linux-gnueabi/gcc-linaro-4.9-2017.01.tar.xz"
+      tar -zxf gcc-linaro-4.9-2017.01.tar.xz -C "gcc32" --strip-components=1
         KBUILD_COMPILER_STRING="LinaroGcc"
         PATH="${PWD}/gcc32/bin:${PATH}"
     sudo apt install -y ccache
@@ -28,7 +28,7 @@ DATE=$(date +'%H%M-%d%m%y')
 START=$(date +"%s")
 CODENAME=j6primelte
 DEF=j6primelte_defconfig
-export CROSS_COMPILE="$(pwd)/gcc32/bin/arm-linux-androideabi-"
+export CROSS_COMPILE="$(pwd)/gcc32/bin/arm-linux-gnueabi-"
 export PATH="$(pwd)/gcc32/bin:$PATH"
 export ARCH=arm
 export KBUILD_BUILD_USER=malkist
