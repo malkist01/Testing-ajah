@@ -6,11 +6,8 @@ echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
 echo "cleaned up"
 echo "Cloning toolchain"
-      mkdir -p "gcc32"
-      curl -Lo gcc-linaro-4.9-2017.01.tar.xz "https://releases.linaro.org/components/toolchain/binaries/latest-4/arm-linux-gnueabi/gcc-linaro-4.9-2017.01.tar.xz"
-      tar -zxf gcc-linaro-4.9-2017.01.tar.xz -C "gcc32" --strip-components=1
-        KBUILD_COMPILER_STRING="LinaroGcc"
-        PATH="${PWD}/gcc32/bin:${PATH}"
+git clone https://github.com/B--B/Custom_Toolchains.git
+
     sudo apt install -y ccache
     echo "Done"
 if [ "$is_test" = true ]; then
