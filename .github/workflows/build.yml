@@ -1,4 +1,4 @@
-name: arm Medusa
+name: j6primelte
 
 on:
   workflow_dispatch:
