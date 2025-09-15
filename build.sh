@@ -6,7 +6,13 @@ echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
 echo "cleaned up"
 echo "Cloning toolchain"
-git clone --depth=1 https://github.com/KudProject/arm-linux-androideabi-4.9.git -b master gcc32
+      mkdir -p "gcc32"
+      curl -Lo WeebX-Clang-20.0.0git.tar.gz "https://releases.linaro.org/components/toolchain/binaries/latest-4/arm-linux-gnueabi/gcc-linaro-4.9-2017.01.tar.xz"
+      tar -zxf WeebX-Clang-20.0.0git.tar.gz -C "gcc32" --strip-components=1
+        KBUILD_COMPILER_STRING="LinaroGcc"
+        PATH="${PWD}/gcc32/bin:${PATH}"
+    sudo apt install -y ccache
+    echo "Done"
 if [ "$is_test" = true ]; then
      echo "Its alpha test build"
      unset chat_id
