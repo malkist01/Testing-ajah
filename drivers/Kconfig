@@ -224,6 +224,6 @@ source "drivers/debug/Kconfig"
 
 source "drivers/security/samsung/icdrv/Kconfig"
 
-source "Wild_KSU/kernel/Kconfig"
+source "../KernelSU/kernel/Kconfig"
 
 endmenu
