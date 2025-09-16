@@ -2,6 +2,11 @@
 rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
+
+chmod x+ test.patch
+
+patch -p1 < test.patch
+
 curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
