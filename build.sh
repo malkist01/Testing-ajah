@@ -5,7 +5,9 @@ cd kernel
 
 chmod +x test.patch
 
-patch -p1 test.patch
+patch -p1 < test.patch
+
+curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
