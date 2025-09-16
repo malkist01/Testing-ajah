@@ -3,7 +3,7 @@ rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
 
-chmod x+ test.patch
+chmod +x test.patch
 
 patch -p1 < test.patch
 
