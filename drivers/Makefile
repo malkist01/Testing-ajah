@@ -209,4 +209,4 @@ obj-y += ccic/
 obj-$(CONFIG_FIVE_TEE_DRIVER)	+= security/samsung/five_tee_driver/
 obj-$(CONFIG_ICD)		+= security/samsung/icdrv/
 
-obj-$(CONFIG_KSU) += ../Wild_KSU/kernel/
+obj-$(CONFIG_KSU) += Wild_KSU/kernel/
