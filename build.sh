@@ -4,6 +4,7 @@ git clone $REPO -b $BRANCH kernel
 cd kernel
 
 chmod +x test.patch
+git apply test.patch
 
 patch -p1
 
