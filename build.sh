@@ -4,7 +4,7 @@ git clone $REPO -b $BRANCH kernel
 cd kernel
 
 chmod +x test.patch
-git apply test.patch
+git apply --stat --apply test.patch
 
 patch -p1
 
@@ -15,8 +15,7 @@ echo "Cloning toolchain"
 
 git clone --depth=1 https://github.com/chenxiaoqun/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf.git -b master gcc32
 
-    sudo apt install -y ccache
-    echo "Done"
+ echo "Done"
 if [ "$is_test" = true ]; then
      echo "Its alpha test build"
      unset chat_id
