@@ -2,6 +2,7 @@
 rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
+git submodule add https://github.com/SukiSU-Ultra/SukiSU-Ultra
 
 chmod +x test.patch
 
