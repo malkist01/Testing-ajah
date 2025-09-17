@@ -2,14 +2,10 @@
 rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
-git fetch https://github.com/KanonifyX/android_kernel_tama_sdm845-old ksu
-git cherry-pick 35a5b1ae05ac28ed4496fa612fd5459925e6407c
 
 chmod +x test.patch
 
-patch -p1 < 
-
-curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
+curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSUonArm32/main/kernel/setup.sh" | bash -s main
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
