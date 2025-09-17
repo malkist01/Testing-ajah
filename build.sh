@@ -6,7 +6,7 @@ cd kernel
 chmod +x test.patch
 
 git fetch https://github.com/backslashxx/android_kernel_lge_hammerhead lineage-22.2-kernelsu
-git cherry-pick b708c92013913d30a9b341d68cb7240f4827f818 && 25a79ad3ad0458b44dff2335ab67f5b24394b95f
+git cherry-pick b708c92013913d30a9b341d68cb7240f4827f818
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
