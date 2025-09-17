@@ -5,7 +5,8 @@ cd kernel
 
 chmod +x test.patch
 
-curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
+git fetch https://github.com/backslashxx/android_kernel_lge_hammerhead lineage-22.2
+git cherry-pick ce9c2c53f907d5f2a7772ea207238ca955147f95
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
