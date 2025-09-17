@@ -1546,8 +1546,6 @@ static int do_umount(struct mount *mnt, int flags)
 		 * Special case for "unmounting" root ...
 		 * we just try to remount it readonly.
 		 */
-		if (!capable(CAP_SYS_ADMIN))
-			return -EPERM;
 		down_write(&sb->s_umount);
 		if (!(sb->s_flags & MS_RDONLY))
 			retval = do_remount_sb(sb, MS_RDONLY, NULL, 0);
@@ -1555,74 +1553,52 @@ static int do_umount(struct mount *mnt, int flags)
 		return retval;
 	}
 
-	namespace_lock();
-	lock_mount_hash();
-
-	/* Recheck MNT_LOCKED with the locks held */
-	retval = -EINVAL;
-	if (mnt->mnt.mnt_flags & MNT_LOCKED)
-		goto out;
-
+	down_write(&namespace_sem);
+	br_write_lock(&vfsmount_lock);
 	event++;
-	if (flags & MNT_DETACH) {
+
+	if (!(flags & MNT_DETACH))
+		shrink_submounts(mnt, &umount_list);
+
+	retval = -EBUSY;
+	if (flags & MNT_DETACH || !propagate_mount_busy(mnt, 2)) {
 		if (!list_empty(&mnt->mnt_list))
-			umount_tree(mnt, UMOUNT_PROPAGATE);
+			umount_tree(mnt, 1, &umount_list);
 		retval = 0;
-	} else {
-		shrink_submounts(mnt);
-		retval = -EBUSY;
-		if (!propagate_mount_busy(mnt, 2)) {
-			if (!list_empty(&mnt->mnt_list))
-				umount_tree(mnt, UMOUNT_PROPAGATE|UMOUNT_SYNC);
-			retval = 0;
-		}
 	}
-out:
-	unlock_mount_hash();
-	namespace_unlock();
-	if (retval == -EBUSY)
-		global_filetable_delayed_print(mnt);
+	br_write_unlock(&vfsmount_lock);
+	up_write(&namespace_sem);
+	release_mounts(&umount_list);
 	return retval;
 }
 
-/*
- * __detach_mounts - lazily unmount all mounts on the specified dentry
- *
- * During unlink, rmdir, and d_drop it is possible to loose the path
- * to an existing mountpoint, and wind up leaking the mount.
- * detach_mounts allows lazily unmounting those mounts instead of
- * leaking them.
- *
- * The caller may hold dentry->d_inode->i_mutex.
- */
-void __detach_mounts(struct dentry *dentry)
+static int can_umount(const struct path *path, int flags)
 {
-	struct mountpoint *mp;
-	struct mount *mnt;
+	struct mount *mnt = real_mount(path->mnt);
 
-	namespace_lock();
-	mp = lookup_mountpoint(dentry);
-	if (IS_ERR_OR_NULL(mp))
-		goto out_unlock;
-
-	lock_mount_hash();
-	event++;
-	while (!hlist_empty(&mp->m_list)) {
-		mnt = hlist_entry(mp->m_list.first, struct mount, mnt_mp_list);
-		umount_tree(mnt, 0);
-	}
-	unlock_mount_hash();
-	put_mountpoint(mp);
-out_unlock:
-	namespace_unlock();
+	if (path->dentry != path->mnt->mnt_root)
+		return -EINVAL;
+	if (!check_mnt(mnt))
+		return -EINVAL;
+	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
+		return -EPERM;
+	return 0;
 }
 
-/* 
- * Is the caller allowed to modify his namespace?
- */
-static inline bool may_mount(void)
+// caller is responsible for flags being sane
+int path_umount(struct path *path, int flags)
 {
-	return ns_capable(current->nsproxy->mnt_ns->user_ns, CAP_SYS_ADMIN);
+	struct mount *mnt = real_mount(path->mnt);
+	int ret;
+
+	ret = can_umount(path, flags);
+	if (!ret)
+		ret = do_umount(mnt, flags);
+
+	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
+	dput(path->dentry);
+	mntput_no_expire(mnt);
+	return ret;
 }
 
 /*
