@@ -65,6 +65,16 @@ ifeq ($(shell grep "ssize_t kernel_write" $(srctree)/fs/read_write.c | grep -q "
 ccflags-y += -DKSU_KERNEL_WRITE
 endif
 
+# Checks Samsung UH drivers
+ifeq ($(shell grep -q "CONFIG_KDP_CRED" $(srctree)/kernel/cred.c; echo $$?),0)
+ccflags-y += -DSAMSUNG_UH_DRIVER_EXIST
+endif
+
+# Samsung SELinux Porting
+ifeq ($(shell grep -q "SEC_SELINUX_PORTING_COMMON" $(srctree)/security/selinux/avc.c; echo $$?),0)
+ccflags-y += -DSAMSUNG_SELINUX_PORTING
+endif
+
 ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
 
