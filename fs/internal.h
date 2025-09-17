@@ -63,7 +63,7 @@ extern int vfs_path_lookup(struct dentry *, struct vfsmount *,
  * namespace.c
  */
 extern int copy_mount_options(const void __user *, unsigned long *);
-extern char *copy_mount_string(const void __user *);
+extern int copy_mount_string(const void __user *, char **);
 
 extern struct vfsmount *lookup_mnt(struct path *);
 extern int finish_automount(struct vfsmount *, struct path *);
@@ -71,11 +71,9 @@ extern int finish_automount(struct vfsmount *, struct path *);
 extern int sb_prepare_remount_readonly(struct super_block *);
 
 extern void __init mnt_init(void);
+int path_umount(struct path *path, int flags);
 
-extern int __mnt_want_write(struct vfsmount *);
-extern int __mnt_want_write_file(struct file *);
-extern void __mnt_drop_write(struct vfsmount *);
-extern void __mnt_drop_write_file(struct file *);
+extern struct lglock vfsmount_lock;
 
 /*
  * fs_struct.c
