@@ -3,6 +3,7 @@ rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
 rm -rf KernelSU
+git add submodule https://github.com/backslashxx/KernelSU
 curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/master/kernel/setup.sh" | bash -s master
 
 echo "Nuke previous toolchains"
