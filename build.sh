@@ -5,7 +5,7 @@ cd kernel
 chmod +x test.patch
 patch -p1 < test.patch
 
-curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s v1.0.8
+curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
