@@ -3,7 +3,7 @@ rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
 
-curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
+curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s v1.0.8" | bash -s wild
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
