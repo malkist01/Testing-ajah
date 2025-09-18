@@ -2,10 +2,6 @@
 rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
-chmod +x test.patch
-patch -p1 < test.patch
-
-curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
