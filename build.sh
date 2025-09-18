@@ -6,8 +6,6 @@ rm -rf KernelSU
 
 git submodule add https://github.com/WildKernels/Wild_KSU
 
-curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
-
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
 echo "cleaned up"
