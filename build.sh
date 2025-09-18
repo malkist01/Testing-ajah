@@ -2,11 +2,11 @@
 rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
+rm -rf KernelSU
 
-chmod +x test.patch
+git submodule add https://github.com/WildKernels/Wild_KSU
 
-git fetch https://github.com/backslashxx/android_kernel_lge_hammerhead lineage-22.2-kernelsu
-git cherry-pick b708c92013913d30a9b341d68cb7240f4827f818
+curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
