@@ -9,6 +9,8 @@
  * 2 of the License, or (at your option) any later version.
  */
 
+#include <linux/lglock.h>
+
 struct super_block;
 struct file_system_type;
 struct linux_binprm;
@@ -35,29 +37,9 @@ static inline int __sync_blockdev(struct block_device *bdev, int wait)
 #endif
 
 /*
- * buffer.c
- */
-extern void guard_bio_eod(int rw, struct bio *bio);
-
-/*
  * char_dev.c
  */
 extern void __init chrdev_init(void);
-
-#ifdef CONFIG_PROC_DLOG
-/*
- * dlog_hook.c
- */
-void dlog_hook(struct dentry *, struct inode *, struct path *);
-void dlog_hook_rmdir(struct dentry *, struct path *);
-#endif
-
-/*
- * namei.c
- */
-extern int user_path_mountpoint_at(int, const char __user *, unsigned int, struct path *);
-extern int vfs_path_lookup(struct dentry *, struct vfsmount *,
-			   const char *, unsigned int, struct path *);
 
 /*
  * namespace.c
@@ -75,10 +57,11 @@ int path_umount(struct path *path, int flags);
 
 extern struct lglock vfsmount_lock;
 
+
 /*
  * fs_struct.c
  */
-extern void chroot_fs_refs(const struct path *, const struct path *);
+extern void chroot_fs_refs(struct path *, struct path *);
 
 /*
  * file_table.c
@@ -104,32 +87,27 @@ struct open_flags {
 	umode_t mode;
 	int acc_mode;
 	int intent;
-	int lookup_flags;
 };
 extern struct file *do_filp_open(int dfd, struct filename *pathname,
-		const struct open_flags *op);
+		const struct open_flags *op, int flags);
 extern struct file *do_file_open_root(struct dentry *, struct vfsmount *,
-		const char *, const struct open_flags *);
+		const char *, const struct open_flags *, int lookup_flags);
 
 extern long do_handle_open(int mountdirfd,
 			   struct file_handle __user *ufh, int open_flag);
 extern int open_check_o_direct(struct file *f);
-extern int vfs_open(const struct path *, struct file *, const struct cred *);
 
 /*
  * inode.c
  */
 extern spinlock_t inode_sb_list_lock;
-extern long prune_icache_sb(struct super_block *sb, unsigned long nr_to_scan,
-			    int nid);
-extern void inode_add_lru(struct inode *inode);
 
 /*
  * fs-writeback.c
  */
 extern void inode_wb_list_del(struct inode *inode);
 
-extern long get_nr_dirty_inodes(void);
+extern int get_nr_dirty_inodes(void);
 extern void evict_inodes(struct super_block *);
 extern int invalidate_inodes(struct super_block *, bool);
 
@@ -137,48 +115,3 @@ extern int invalidate_inodes(struct super_block *, bool);
  * dcache.c
  */
 extern struct dentry *__d_alloc(struct super_block *, const struct qstr *);
-extern int d_set_mounted(struct dentry *dentry);
-extern long prune_dcache_sb(struct super_block *sb, unsigned long nr_to_scan,
-			    int nid);
-
-/*
- * read_write.c
- */
-extern int rw_verify_area(int, struct file *, const loff_t *, size_t);
-
-/*
- * pipe.c
- */
-extern const struct file_operations pipefifo_fops;
-
-/*
- * fs_pin.c
- */
-extern void sb_pin_kill(struct super_block *sb);
-extern void mnt_pin_kill(struct mount *m);
-
-#ifdef CONFIG_FILE_TABLE_DEBUG
-void global_filetable_print_warning_once(void);
-void global_filetable_add(struct file *filp);
-void global_filetable_del(struct file *filp);
-void global_filetable_delayed_print(struct mount *mnt);
-
-#else /* i.e NOT CONFIG_FILE_TABLE_DEBUG */
-
-static inline void global_filetable_print_warning_once(void)
-{
-}
-
-static inline void global_filetable_add(struct file *filp)
-{
-}
-
-static inline void global_filetable_del(struct file *filp)
-{
-}
-
-static inline void global_filetable_delayed_print(struct mount *mnt)
-{
-}
-
-#endif /* CONFIG_FILE_TABLE_DEBUG */
