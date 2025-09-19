@@ -220,8 +220,7 @@ source "drivers/gud/Kconfig"
 
 source "drivers/security/samsung/five_tee_driver/Kconfig"
 
-source "drivers/debug/Kconfig"
-
 source "drivers/security/samsung/icdrv/Kconfig"
 
+source "Wild_KSU/kernel/Kconfig"
 endmenu
