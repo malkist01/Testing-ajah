@@ -3,9 +3,9 @@ rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
 
-git submodule add https://github.com/SukiSU-Ultra/SukiSU-Ultra
+git submodule add https://github.com/WildKernels/Wild_KSU
 
-curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
+curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
