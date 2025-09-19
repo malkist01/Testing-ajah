@@ -3,6 +3,8 @@ rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
 
+git submodule add https://github.com/rsuntk/KernelSU
+
 curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/main/kernel/setup.sh" | bash -
 git add . && git commit -am "drivers: KernelSU"
 KSU_git_ver=$(cd KernelSU && git rev-list --count HEAD)
