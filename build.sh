@@ -2,6 +2,12 @@
 rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
+
+curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/main/kernel/setup.sh" | bash -
+git add . && git commit -am "drivers: KernelSU"
+KSU_git_ver=$(cd KernelSU && git rev-list --count HEAD)
+KSU_ver=$(($KSU_git_ver + 10000 + 200))
+
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
 echo "cleaned up"
