@@ -3,25 +3,13 @@ rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
 
-git submodule add https://github.com/rsuntk/KernelSU
+git submodule add https://github.com/rsuntk/KernelSU KernelSU
 
 curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/refs/heads/main/kernel/setup.sh" | bash -
-
-git config --global aripujiyanto0812@gmail.com
 
 git add . && git commit -am "drivers: KernelSU"
 KSU_git_ver=$(cd KernelSU && git rev-list --count HEAD)
 KSU_ver=$(($KSU_git_ver + 10000 + 200))
-
-patchesdir="ksu/patches/$(echo $kernel_ver | cut -d. -f1,2)"
-if [[ -d "$patchesdir" ]]; then
-  for patch_file in "$patchesdir"/*.patch ; do
-    git am "$patch_file"
-  done
-else
-  echo "patching ksu failed, the kernel version you want to patch doesnt have patches here yet"
-  exit 1
-fi
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
