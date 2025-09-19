@@ -3,10 +3,10 @@ rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
 
-git clone https://github.com/devnoname120/kernelsu-coccinelle
-cd kernelsu-coccinelle/scope-minimized-hooks
+git clone https://github.com/devnoname120/kernelsu-coccinelle 
+
+export patch1="$(pwd)/kernelsu-coccinelle/scope-minimized-hooks"
 ./apply.sh kernel
-cd kernel
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
