@@ -8,8 +8,6 @@ git clone https://github.com/devnoname120/kernelsu-coccinelle
 patch1=$(pwd)/kernelsu-coccinelle/scope-minimized-hooks
 ${patch1}/apply.sh kernel
 
-curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
-
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
 echo "cleaned up"
