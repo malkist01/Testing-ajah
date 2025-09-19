@@ -5,7 +5,8 @@ cd kernel
 
 git clone https://github.com/devnoname120/kernelsu-coccinelle
 cd kernelsu-coccinelle/scope-minimized-hooks
-./apply.sh
+./apply.sh kernel
+cd kernel
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
