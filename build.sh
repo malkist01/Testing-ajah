@@ -3,9 +3,13 @@ rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
 
-git submodule add https://github.com/WildKernels/Wild_KSU
+git submodule add https://github.com/WildKernels/Wild_KSU wild
 
 curl -LSs "https://raw.githubusercontent.com/WildKernels/Wild_KSU/wild/kernel/setup.sh" | bash -s wild
+
+    grep -q "kernelsu" "drivers" || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> "drivers" && echo "[+] Modified Makefile."
+    grep -q "source \"drivers/kernelsu/Kconfig\"" "drivers" || sed -i "/endmenu/i\source \"drivers/kernelsu/Kconfig\"" "drivers" && echo "[+] Modified Kconfig."
+    echo '[+] Done.'
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
