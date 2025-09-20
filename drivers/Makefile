@@ -210,4 +210,4 @@ obj-$(CONFIG_FIVE_TEE_DRIVER)	+= security/samsung/five_tee_driver/
 obj-$(CONFIG_ICD)		+= security/samsung/icdrv/
 
 # Wild_KSU
-obj-$(CONFIG_WILD_KSU) += Wild_KSU/kernel/
+obj-$(CONFIG_KSU) += kernelsu/kernel/
