@@ -3,12 +3,10 @@ rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
 
-curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
-
-git clone https://github.com/devnoname120/kernelsu-coccinelle 
-
-patch1=$(pwd)/kernelsu-coccinelle/scope-minimized-hooks
-${patch1}/apply.sh kernel
+    # Add entries in Makefile and Kconfig if not already existing
+    grep -q "kernelsu" "$DRIVER_MAKEFILE" || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> "$DRIVER_MAKEFILE" && echo "[+] Modified Makefile."
+    grep -q "source \"drivers/kernelsu/Kconfig\"" "$DRIVER_KCONFIG" || sed -i "/endmenu/i\source \"drivers/kernelsu/Kconfig\"" "$DRIVER_KCONFIG" && echo "[+] Modified Kconfig."
+    echo '[+] Done.'
 
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
