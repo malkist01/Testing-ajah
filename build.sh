@@ -17,6 +17,8 @@ IMAGE=$(pwd)/out/arch/arm/boot/zImage
 DATE=$(date +'%H%M-%d%m%y')
 START=$(date +"%s")
 CODENAME=j6primelte
+CC=clang
+HOSTCC=clang
 DEF=j6primelte_defconfig
 export PATH=$(pwd)/proton-clang/bin:$PATH
 export CROSS_COMPILE=$(pwd)/proton-clang/bin/arm-linux-gnueabi-
@@ -35,11 +37,8 @@ function push() {
 }
 # Compile plox
 function compile() {
-    make -j$(nproc --all) O=out ARCH=arm ${DEF}
-    make -j$(nproc --all) ARCH=arm O=out \
-                          CC=clang \
-                          CROSS_COMPILE=arm-linux-gnueabi-
-                  
+     make -C $(pwd) O=out ${DEF}
+     make -j64 -C $(pwd) O=out                 
      if ! [ -a "$IMAGE" ]; then
         finderr
         exit 1
