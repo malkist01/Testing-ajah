@@ -16,12 +16,12 @@ on:
           default: 'clang-patch'
           required: true
       toolchain:
-          description: 'Kernel source link (dont include . git at the end)'
+          description: 'Toolchain'
           default: 'https://github.com/malkist01/Testing-ajah.git'
           required: true
       tc_branch:
-          description: 'Kernel source link (dont include . git at the end)'
-          default: 'https://github.com/malkist01/Testing-ajah.git'
+          description: 'Tc_branch'
+          default: ' '
           required: true
           
       token:
