@@ -110,21 +110,10 @@ finderr() {
     exit 1
 }
 
-# Compile
-compile() {
-
-    if [ -d "out" ]; then
-        rm -rf out && mkdir -p out
-    fi
-
-    make O=out ARCH="${ARCH}" "${DEFCONFIG}"
-    make O=out \
-         ARCH=$ARCH \
-         CC="clang" \
-         CXX="clang" \
-         HOSTCC="clang" \
-         HOSTCXX="clang" \
-         CROSS_COMPILE=arm-linux-gnueabi-
+# Compile plox
+function compile() {
+     make -C $(pwd) O=out ${DEFCONFIG}
+     make -j64 -C $(pwd) O=out
 
     if ! [ -a "$IMAGE" ]; then
         finderr
