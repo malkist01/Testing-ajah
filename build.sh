@@ -2,14 +2,10 @@
 rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
-
-curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
 echo "Nuke previous toolchains"
 rm -rf toolchain out AnyKernel
 echo "cleaned up"
 echo "Cloning toolchain"
-
-git clone --depth=1 https://github.com/chenxiaoqun/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf.git -b master gcc32
 
  echo "Done"
 if [ "$is_test" = true ]; then
@@ -27,8 +23,8 @@ DATE=$(date +'%H%M-%d%m%y')
 START=$(date +"%s")
 CODENAME=j6primelte
 DEF=j6primelte_defconfig
-export PATH="$(pwd)/gcc32/bin:$PATH"
-export CROSS_COMPILE="$(pwd)/gcc32/bin/arm-linux-gnueabihf-"
+export PATH="$(pwd)/gcc/bin:$PATH"
+export CROSS_COMPILE="$(pwd)/gcc/bin/arm-linux-androideadbi-"
 export ARCH=arm
 export KBUILD_BUILD_USER=malkist
 export KBUILD_BUILD_HOST=android
