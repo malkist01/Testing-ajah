@@ -18,6 +18,8 @@ clang() {
     echo "Done"
 }
 
+export CROSS_COMPILE="$(pwd)/clang/bin/arm-linux-gnueabi-"
+export PATH="$(pwd)/clang/bin:$PATH"
 IMAGE=$(pwd)/out/arch/arm/boot/zImage
 DATE=$(date +"%Y%m%d-%H%M")
 START=$(date +"%s")
