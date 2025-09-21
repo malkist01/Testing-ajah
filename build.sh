@@ -74,7 +74,7 @@ KERNELDIR=$PWD
 TOOLDIR=$KERNELDIR/.ToolBuild
 ZIP_DIR="${TOOLDIR}/AnyKernel3"
 OUTDIR="${KERNELDIR}/.Output"
-IMAGE="${OUTDIR}/arch/arm64/boot/Image.gz-dtb"
+IMAGE="${OUTDIR}/arch/arm/boot/Image.gz-dtb"
 # DTB="${OUTDIR}/arch/arm64/boot/dts/qcom"
 
 # Download tool
@@ -149,7 +149,7 @@ function cleanOutdir() {
 }
 
 function compile_clang10() {
-    make ARCH=arm64 O="${OUTDIR}" "${CONFIG_FILE}"
+    make ARCH=arm64 O="${OUTDIR}" "j6primelte_defconfig"
     PATH="${CLANGDIR}/bin:${PATH}" \
     make "-j${JOBS}" O="${OUTDIR}" \
                           ARCH=arm64 \
