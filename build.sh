@@ -119,9 +119,9 @@ compile() {
     make -j"${PROCS}" O=out \
          ARCH=$ARCH \
          CC="clang" \
-         CXX="clang++" \
+         CXX="clang" \
          HOSTCC="clang" \
-         HOSTCXX="clang++" \
+         HOSTCXX="clang" \
          AR=llvm-ar \
          AS=llvm-as \
          NM=llvm-nm \
@@ -129,8 +129,7 @@ compile() {
          OBJDUMP=llvm-objdump \
          STRIP=llvm-strip \
          LLVM=1 \
-        CROSS_COMPILE=aarch64-linux-gnu- \
-        CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+         CROSS_COMPILE=arm-linux-gnueabi-
 
     if ! [ -a "$IMAGE" ]; then
         finderr
