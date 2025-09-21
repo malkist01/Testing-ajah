@@ -8,7 +8,7 @@ git clone $TOOLCHAIN -b $TC_BRANCH clang
 rm -rf KernelSU
 
 KBUILD_COMPILER_STRING="clang 11"
-PATH="${PWD}/clang/bin:${PATH}"
+PATH="${pwd}/clang/bin:${PATH}"
 export CROSS_COMPILE="$(pwd)/clang/bin/arm-linux-gnueabi-"
 export PATH="$(pwd)/clang/bin:$PATH"
 IMAGE=$(pwd)/out/arch/arm/boot/zImage
@@ -105,7 +105,8 @@ finderr() {
 function compile() {
      make -C $(pwd) O=out ${DEFCONFIG}
      make -j64 -C $(pwd) O=out
-
+     CC=clang \
+     HOSTCC=clang \
     if ! [ -a "$IMAGE" ]; then
         finderr
         exit 1
