@@ -7,18 +7,8 @@ cd kernel
 git clone $TOOLCHAN -b $TC_BRANCH clang
 rm -rf KernelSU
 
-clang() {
-    rm -rf clang
-    echo "Cloning clang"
-    if [ ! -d "clang" ]; then
-     git clone --depth=1 https://github.com/Haseo97/Clang-11.0.0 clang
-        KBUILD_COMPILER_STRING="clang 11"
-        PATH="${PWD}/clang/bin:${PATH}"
-    fi
-    sudo apt install -y ccache
-    echo "Done"
-}
-
+KBUILD_COMPILER_STRING="clang 11"
+PATH="${PWD}/clang/bin:${PATH}"
 export CROSS_COMPILE="$(pwd)/clang/bin/arm-linux-gnueabi-"
 export PATH="$(pwd)/clang/bin:$PATH"
 IMAGE=$(pwd)/out/arch/arm/boot/zImage
