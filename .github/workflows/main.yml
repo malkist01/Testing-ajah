@@ -17,11 +17,11 @@ on:
           required: true
       toolchain:
           description: 'Toolchain'
-          default: 'https://github.com/Haseo97/Clang-11.0.0'
+          default: 'https://github.com/Haseo97/Avalon-Clang-12.0.0.git'
           required: true
       tc_branch:
           description: 'Tc_branch'
-          default: ' '
+          default: 'aosp'
           required: true
           
       token:
