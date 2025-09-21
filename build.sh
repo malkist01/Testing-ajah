@@ -2,8 +2,9 @@
 
 # Dependencies
 rm -rf kernel
-git clone $REPO -b $BRANCH kernel 
+git clone $REPO -b $BRANCH kernel
 cd kernel
+git clone $TOOLCHAN -b $TC_BRANCH clang
 rm -rf KernelSU
 
 clang() {
