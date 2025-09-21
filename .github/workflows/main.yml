@@ -15,6 +15,15 @@ on:
           description: 'Kernel source branch'
           default: 'clang-patch'
           required: true
+      toolchain:
+          description: 'Kernel source link (dont include . git at the end)'
+          default: 'https://github.com/malkist01/Testing-ajah.git'
+          required: true
+      tc_branch:
+          description: 'Kernel source link (dont include . git at the end)'
+          default: 'https://github.com/malkist01/Testing-ajah.git'
+          required: true
+          
       token:
           description: 'Telegram bot token'
           default: '7596553794:AAGoeg4VypmUfBqfUML5VWt5mjivN5-3ah8'
@@ -29,6 +38,8 @@ env:
   DEVICE: ${{ github.event.inputs.device }}
   REPO: ${{ github.event.inputs.repo }}
   BRANCH: ${{ github.event.inputs.branch }}
+  TOOLCHAIN: ${{ github.event.inputs.repo }}
+  TC_BRANCH: ${{ github.event.inputs.branch }}
   token: ${{ github.event.inputs.token }}
   chat_id: ${{ github.event.inputs.chat_id }}
 
