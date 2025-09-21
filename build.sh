@@ -116,19 +116,12 @@ compile() {
     fi
 
     make O=out ARCH="${ARCH}" "${DEFCONFIG}"
-    make -j"${PROCS}" O=out \
+    make O=out \
          ARCH=$ARCH \
          CC="clang" \
          CXX="clang" \
          HOSTCC="clang" \
          HOSTCXX="clang" \
-         AR=llvm-ar \
-         AS=llvm-as \
-         NM=llvm-nm \
-         OBJCOPY=llvm-objcopy \
-         OBJDUMP=llvm-objdump \
-         STRIP=llvm-strip \
-         LLVM=1 \
          CROSS_COMPILE=arm-linux-gnueabi-
 
     if ! [ -a "$IMAGE" ]; then
