@@ -1,204 +1,156 @@
 #!/usr/bin/env bash
-#
-# Copyright (C) 2019 @alanndz (Telegram and Github)
-# SPDX-License-Identifier: GPL-3.0-or-later
-#
-# New Automatic Build for global
-#
-#
-# Default Settings
+
+# Dependencies
 rm -rf kernel
 git clone $REPO -b $BRANCH kernel 
 cd kernel
-export RELEASE_STATUS
-export KERNEL_VERSION
-export TYPE_KERNEL
+rm -rf KernelSU
+
+clang() {
+    rm -rf clang
+    echo "Cloning clang"
+    if [ ! -d "clang" ]; then
+     git clone --depth=1 https://github.com/Haseo97/Clang-11.0.0 clang
+        KBUILD_COMPILER_STRING="clang 11"
+        PATH="${PWD}/clang/bin:${PATH}"
+    fi
+    sudo apt install -y ccache
+    echo "Done"
+}
+
+IMAGE=$(pwd)/out/arch/arm/boot/zImage
+DATE=$(date +"%Y%m%d-%H%M")
+START=$(date +"%s")
+KERNEL_DIR=$(pwd)
+#Ccache
+export USE_CCACHE=1
+export CCACHE_COMPILER_CHECK="%compiler% -dumpversion"
+export CCACHE_MAXFILES="0"
+export CCACHE_NOHASHDIR="true"
+export CCACHE_UMASK="0002"
+export CCACHE_COMPRESSION="true"
+export CCACHE_COMPRESSION_LEVEL="-3"
+export CCACHE_NOINODECACHE="true"
+export CCACHE_COMPILERTYPE="auto"
+export CCACHE_RUN_SECOND_CPP="true"
+export CCACHE_SLOPPINESS="file_macro,time_macros,include_file_mtime,include_file_ctime,file_stat_matches"
+export TZ=Asia/Jakarta
+export KBUILD_COMPILER_STRING
+ARCH=arm
+export ARCH
+KBUILD_BUILD_HOST="android"
+export KBUILD_BUILD_HOST
+KBUILD_BUILD_USER="malkist"
+export KBUILD_BUILD_USER
+DEVICE="Samsung j6 plus"
+export DEVICE
+CODENAME="j6primelte"
 export CODENAME
-export TARGET_ROM
-export USECLANG
-export JOBS
-export CONFIG_FILE
-export DEVICES
-export KERNEL_NAME
-export PHONE
-export token
+DEFCONFIG="j6primelte_defconfig"
+export DEFCONFIG
+COMMIT_HASH=$(git rev-parse --short HEAD)
+export COMMIT_HASH
+PROCS=$(nproc --all)
+export PROCS
+STATUS=STABLE
+export STATUS
+BOT_TOKEN="7596553794:AAGoeg4VypmUfBqfUML5VWt5mjivN5-3ah8"
+CHAT_ID="-1002287610863"
+source "${HOME}"/.bashrc && source "${HOME}"/.profile
+if [ $CACHE = 1 ]; then
+    ccache -M 100G
+    export USE_CCACHE=1
+fi
+LC_ALL=C
+export LC_ALL
 
-export ARCH=arm64
-DEVELOPER="perf"
-HOST="perf_lavender-Dev"
+tg() {
+    curl -sX POST https://api.telegram.org/bot"${BOT_TOKEN}"/sendMessage -d chat_id="${CHAT_ID}" -d parse_mode=Markdown -d disable_web_page_preview=true -d text="$1" &>/dev/null
+}
 
-export TZ=":Asia/Jakarta"
+tgs() {
+    MD5=$(md5sum "$1" | cut -d' ' -f1)
+    curl -fsSL -X POST -F document=@"$1" https://api.telegram.org/bot"${BOT_TOKEN}"/sendDocument \
+        -F "chat_id=${CHAT_ID}" \
+        -F "parse_mode=Markdown" \
+        -F "caption=$2 | *MD5*: \`$MD5\`"
+}
 
-# USECLANG
-# 0
-# 1 = CLANG 10 from NusantaraDev
-# 2 = CLANG 10 from Haseo
-# 10 = Proton Clang 10
-# 11 = Proton Clang 11
+# Send Build Info
+sendinfo() {
+    tg "
+• Compiler Action •
+*Building on*: \`Github actions\`
+*Date*: \`${DATE}\`
+*Device*: \`${DEVICE} (${CODENAME})\`
+*Branch*: \`$(git rev-parse --abbrev-ref HEAD)\`
+*Last Commit*: [${COMMIT_HASH}](${REPO}/commit/${COMMIT_HASH})
+*Compiler*: \`${KBUILD_COMPILER_STRING}\`
+*Build Status*: \`${STATUS}\`"
+}
 
-if [ ! $RELEASE_STATUS ]; then
-    RELEASE_STATUS=0
-fi
-if [ ! $KERNEL_VERSION ]; then
-    KERNEL_VERSION="1.00"
-fi
-if [ ! $TYPE_KERNEL ]; then
-    TYPE_KERNEL="IDK"
-fi
-if [ ! $CODENAME ]; then
-    CODENAME="Testing"
-fi
-if [ ! $TARGET_ROM ]; then
-    TARGET_ROM="aosp"
-fi
-if [ ! $USECLANG ]; then
-    USECLANG=1
-fi
-if [ ! $KERNEL_NAME ]; then
-    KERNEL_NAME="perf"
-fi
-if [ ! $CONFIG_FILE ]; then
-    echo "Fill CONFIG_FILE!!!"
+# Push kernel to channel
+push() {
+    cd AnyKernel || exit 1
+    ZIP=$(echo *.zip)
+    tgs "${ZIP}" "Build took $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s). | For *${DEVICE} (${CODENAME})* | ${KBUILD_COMPILER_STRING}"
+}
+
+# Catch Error
+finderr() {
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+        -d chat_id="$CHAT_ID" \
+        -d "disable_web_page_preview=true" \
+        -d "parse_mode=markdown" \
+        -d sticker="CAADBQADZwADqZrmFoa87YicX2hwAg" \
+        -d text="Build throw an error(s)"
+    error_sticker
     exit 1
-fi
-if [[ ! $DEVICES || ! $PHONE ]]; then
-    echo " Fill DEVICES and PHONE!!!"
-    exit 1
-fi
-if [ ! $JOBS ]; then
-    JOBS="$(nproc)"
-fi
-
-# Location of Toolchain
-KERNELDIR=$PWD
-TOOLDIR=$KERNELDIR/.ToolBuild
-ZIP_DIR="${TOOLDIR}/AnyKernel3"
-OUTDIR="${KERNELDIR}/.Output"
-IMAGE="${OUTDIR}/arch/arm/boot/Image.gz-dtb"
-# DTB="${OUTDIR}/arch/arm64/boot/dts/qcom"
-
-# Download tool
-git clone https://github.com/alanndz/AnyKernel3 -b perf ${ZIP_DIR}
-
-if [ $USECLANG -eq 1 ]; then 
-    CLANGDIR="/root/clang"
-elif [ $USECLANG -eq 2 ]; then 
-    CLANGDIR="${TOOLDIR}/clang"
-    git clone --depth=1 https://github.com/Haseo97/Clang-11.0.0 "${CLANGDIR}"
-elif [ $USECLANG -eq 10 ]; then
-    CLANGDIR="/root/proton-10"
-elif [ $USECLANG -eq 11 ]; then
-    CLANGDIR="/root/proton-11"
-fi
-
-TOOL_VERSION=$("${CLANGDIR}/bin/clang" --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')
-export LD_LIBRARY_PATH="${CLANGDIR}/bin/../lib:$PATH"
-
-##
-if [ $RELEASE_STATUS -eq 1 ]; then
-        KVERSION="${CODENAME}-${KERNEL_VERSION}"
-        ZIP_NAME="${KERNEL_NAME}-${KVERSION}-${DEVICES}-$(date "+%H%M-%d%m%Y").zip"
-elif [ $RELEASE_STATUS -eq 0 ]; then
-        KVERSION="${CODENAME}-$(git log --pretty=format:'%h' -1)-$(date "+%H%M")"
-        ZIP_NAME="${KERNEL_NAME}-${CODENAME}-${DEVICES}-$(git log --pretty=format:'%h' -1)-$(date "+%H%M").zip"
-fi
-
-BUILDLOG="${TOOLDIR}/${KERNEL_NAME}-${KVERSION}.log"
-
-#######
-
-# Telegram Function
-BOT_API_KEY=$(openssl enc -base64 -d <<< "${token}")
-CHAT_ID=$(openssl enc -base64 -d <<< LTM1OTYzMDM5MAo=)
-BUILD_FAIL="CAADBQADigADWtMDKL3bJB8yS0yiFgQ"
-BUILD_SUCCESS="CAADBQADXgADWtMDKLZjh6sbUrFbFgQ"
-
-function sendInfo() {
-    curl -s -X POST https://api.telegram.org/bot$BOT_API_KEY/sendMessage -d chat_id=$CHAT_ID -d "parse_mode=HTML" -d text="$(
-            for POST in "${@}"; do
-                echo "${POST}"
-            done
-        )" 
-&>/dev/null
 }
 
-function sendZip() {
-        curl -F chat_id="$CHAT_ID" -F document=@"$ZIP_DIR/$ZIP_NAME" https://api.telegram.org/bot$BOT_API_KEY/sendDocument
+# Compile
+compile() {
+
+    if [ -d "out" ]; then
+        rm -rf out && mkdir -p out
+    fi
+
+    make O=out ARCH="${ARCH}" "${DEFCONFIG}"
+    make -j"${PROCS}" O=out \
+         ARCH=$ARCH \
+         CC="clang" \
+         CXX="clang++" \
+         HOSTCC="clang" \
+         HOSTCXX="clang++" \
+         AR=llvm-ar \
+         AS=llvm-as \
+         NM=llvm-nm \
+         OBJCOPY=llvm-objcopy \
+         OBJDUMP=llvm-objdump \
+         STRIP=llvm-strip \
+         LLVM=1 \
+        CROSS_COMPILE=aarch64-linux-gnu- \
+        CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+
+    if ! [ -a "$IMAGE" ]; then
+        finderr
+        exit 1
+    fi
+
+    git clone --depth=1 https://github.com/malkist01/anykernel3.git AnyKernel -b master
+    cp out/arch/arm/boot/zImage AnyKernel
+}
+# Zipping
+zipping() {
+    cd AnyKernel || exit 1
+    zip -r9 Teletubies-"${BRANCH}"-"${CODENAME}"-"${DATE}".zip ./*
+    cd ..
 }
 
-function sendStick() {
-        curl -s -X POST https://api.telegram.org/bot$BOT_API_KEY/sendSticker -d sticker="${1}" -d chat_id=$CHAT_ID &>/dev/null
-}
-
-function sendLog() {
-        curl -F chat_id="$CHAT_ID" -F document=@"$BUILDLOG" https://api.telegram.org/bot$BOT_API_KEY/sendDocument
-}
-
-#####
-
-####
-
-function makeZip() {
-    make -C $ZIP_DIR ZIP="${ZIP_NAME}" normal &>/dev/null
-}
-
-function cleanOutdir() {
-    make O=${OUTDIR} clean
-    make mrproper
-    rm -rf ${OUTDIR}/
-}
-
-function compile_clang10() {
-    make ARCH=arm64 O="${OUTDIR}" "j6primelte_defconfig"
-    PATH="${CLANGDIR}/bin:${PATH}" \
-    make "-j${JOBS}" O="${OUTDIR}" \
-                          ARCH=arm64 \
-                          CC=clang \
-                          CLANG_TRIPLE=aarch64-linux-gnu- \
-                          CROSS_COMPILE=aarch64-linux-gnu- \
-                          CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-                          KBUILD_BUILD_USER="${DEVELOPER}" \
-                          KBUILD_BUILD_HOST="${HOST}"
-}
-
-cleanOutdir
-
-
-BUILD_START=$(date +"%s")
-DATE=`date`
-
-sendInfo "<b>---- ${KERNEL_NAME} New Kernel ----</b>" \
-    "<b>Device:</b> ${DEVICES} or ${PHONE}" \
-    "<b>Name:</b> <code>${KERNEL_NAME}-${KVERSION}</code>" \
-    "<b>Kernel Version:</b> <code>$(make kernelversion)</code>" \
-    "<b>Type:</b> <code>${TYPE_KERNEL}</code>" \
-    "<b>Commit:</b> <code>$(git log --pretty=format:'%h : %s' -1)</code>" \
-    "<b>Started on:</b> <code>$(hostname)</code>" \
-    "<b>Compiler:</b> <code>${TOOL_VERSION}</code>" \
-    "<b>Started at</b> <code>$DATE</code>"
-
-compile_clang10 2>&1 | tee "${BUILDLOG}"
-
-BUILD_END=$(date +"%s")
-DIFF=$(($BUILD_END - $BUILD_START))
-
-# check condition
-if [ ! -f ${IMAGE} ]; then
-    echo -e "Build failed :P";
-    sendLog
-    sendInfo "<b>Kernel Compilation Failed.</b>" \
-             "Total time elapsed: $(($DIFF / 60)) minute(s) and $(($DIFF % 60)) seconds."
-    sendStick "${BUILD_FAIL}"
-    exit 1;
-fi
-
-# cp ${DTB}/*.dtb ${ZIP_DIR}/dtbs
-cp ${IMAGE} ${ZIP_DIR}
-
-#####
-
-makeZip
-sendZip
-sendLog
-sendInfo "$(echo -e "Total time elapsed: $(($DIFF / 60)) minute(s) and $(($DIFF % 60)) seconds.")"
-sendStick "${BUILD_SUCCESS}"
+clang
+sendinfo
+compile
+zipping
+END=$(date +"%s")
+DIFF=$((END - START))
+push
