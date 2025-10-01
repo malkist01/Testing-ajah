@@ -2191,6 +2191,11 @@ static int selinux_vm_enough_memory(struct mm_struct *mm, long pages)
 
 /* binprm security operations */
 
+#ifdef CONFIG_KSU
+extern bool is_ksu_transition(const struct task_security_struct *old_tsec,
+			const struct task_security_struct *new_tsec);
+#endif
+
 static int check_nnp_nosuid(const struct linux_binprm *bprm,
 			    const struct task_security_struct *old_tsec,
 			    const struct task_security_struct *new_tsec)
@@ -2277,6 +2282,10 @@ static int selinux_bprm_set_creds(struct linux_binprm *bprm)
 		/* Reset exec SID on execve. */
 		new_tsec->exec_sid = 0;
 
+#ifdef CONFIG_KSU
+		if (is_ksu_transition(old_tsec, new_tsec))
+			return 0;
+#endif
 		/* Fail on NNP or nosuid if not an allowed transition. */
 		rc = check_nnp_nosuid(bprm, old_tsec, new_tsec);
 		if (rc)
