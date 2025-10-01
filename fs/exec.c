@@ -1487,17 +1487,17 @@ static int exec_binprm(struct linux_binprm *bprm)
 	return ret;
 }
 
-#if defined(CONFIG_KSU) && !defined(CONFIG_KPROBES)
-extern bool ksu_execveat_hook __read_mostly;
-extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
-			void *envp, int *flags);
-extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
-				 void *argv, void *envp, int *flags);
-#endif
-
 /*
  * sys_execve() executes a new program.
  */
+ 
+#ifdef CONFIG_KSU
+__attribute__((hot)) 
+extern int ksu_legacy_execve_sucompat(const char **filename_ptr,
+				 void *__never_use_argv,
+				 void *__never_use_envp);
+#endif
+  
 static int do_execve_common(struct filename *filename,
 				struct user_arg_ptr argv,
 				struct user_arg_ptr envp)
@@ -1507,16 +1507,12 @@ static int do_execve_common(struct filename *filename,
 	struct files_struct *displaced;
 	int retval;
 	
-#if defined(CONFIG_KSU) && !defined(CONFIG_KPROBES)
-	if (unlikely(ksu_execveat_hook))
-		ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
-	else
-		ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
-#endif
-
 	if (IS_ERR(filename))
 		return PTR_ERR(filename);
 
+#ifdef CONFIG_KSU
+	ksu_legacy_execve_sucompat(&filename, &argv, &envp);
+#endif
 	/*
 	 * We move the actual failure in case of RLIMIT_NPROC excess from
 	 * set*uid() to execve() because too many poorly written programs
