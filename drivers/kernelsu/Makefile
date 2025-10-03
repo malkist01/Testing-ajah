@@ -17,7 +17,7 @@ ccflags-y += -I$(objtree)/security/selinux -include $(srctree)/include/uapi/asm-
 obj-$(CONFIG_KSU) += kernelsu.o
 
 $(eval KSU_VERSION=12883)
-$(info -- KernelSU version: $(KSU_VERSION))
+$(info -- KernelSU-Next version: $(KSU_VERSION))
 ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
 
 ifeq ($(shell grep -q " current_sid(void)" $(srctree)/security/selinux/include/objsec.h; echo $$?),0)
@@ -28,24 +28,24 @@ ifeq ($(shell grep -q "struct selinux_state " $(srctree)/security/selinux/includ
 ccflags-y += -DKSU_COMPAT_HAS_SELINUX_STATE
 endif
 
-ifndef KSU_EXPECTED_SIZE
-KSU_EXPECTED_SIZE := 0x033b
+ifndef KSU_NEXT_MANAGER_SIZE
+KSU_NEXT_MANAGER_SIZE := 0x3e6
 endif
 
-ifndef KSU_EXPECTED_HASH
-KSU_EXPECTED_HASH := c371061b19d8c7d7d6133c6a9bafe198fa944e50c1b31c9d8daa8d7f1fc2d2d6
+ifndef KSU_NEXT_MANAGER_HASH
+KSU_NEXT_MANAGER_HASH := 79e590113c4c4c0c222978e413a5faa801666957b1212a328e46c00c69821bf7
 endif
 
 ifdef KSU_MANAGER_PACKAGE
 ccflags-y += -DKSU_MANAGER_PACKAGE=\"$(KSU_MANAGER_PACKAGE)\"
-$(info -- KernelSU Manager package name: $(KSU_MANAGER_PACKAGE))
+$(info -- KernelSU-Next Manager package name: $(KSU_MANAGER_PACKAGE))
 endif
 
-$(info -- KernelSU Manager signature size: $(KSU_EXPECTED_SIZE))
-$(info -- KernelSU Manager signature hash: $(KSU_EXPECTED_HASH))
+$(info -- KernelSU-Next Manager signature size: $(KSU_NEXT_EXPECTED_SIZE))
+$(info -- KernelSU-Next Manager signature hash: $(KSU_NEXT_EXPECTED_HASH))
 
-ccflags-y += -DEXPECTED_SIZE=$(KSU_EXPECTED_SIZE)
-ccflags-y += -DEXPECTED_HASH=\"$(KSU_EXPECTED_HASH)\"
+ccflags-y += -DEXPECTED_SIZE=$(KSU_NEXT_EXPECTED_SIZE)
+ccflags-y += -DEXPECTED_HASH=\"$(KSU_NEXT_EXPECTED_HASH)\"
 
 # UL, look for "ext4_unregister_sysfs" on fs/ext4
 ifeq ($(shell grep -q "^extern void ext4_unregister_sysfs" $(srctree)/fs/ext4/ext4.h 2>/dev/null; echo $$?),0)
