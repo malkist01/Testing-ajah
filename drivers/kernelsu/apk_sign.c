@@ -18,6 +18,8 @@
 #include "klog.h" // IWYU pragma: keep
 #include "kernel_compat.h"
 
+static unsigned int expected_manager_size = EXPECTED_MANAGER_SIZE;
+static char expected_manager_hash[SHA256_DIGEST_SIZE * 2 + 1] = EXPECTED_MANAGER_HASH;
 
 struct sdesc {
 	struct shash_desc shash;
@@ -93,23 +95,18 @@ static bool check_block(struct file *fp, u32 *size4, loff_t *pos, u32 *offset,
 		*offset += *size4;
 
 #define CERT_MAX_LENGTH 1024
-		char *cert = kmalloc(*size4, GFP_KERNEL);
-		if (!cert) {
-			pr_info("cert kmalloc failed\n");
-			return false;
-		}
+		char cert[CERT_MAX_LENGTH];
 		if (*size4 > CERT_MAX_LENGTH) {
 			pr_info("cert length overlimit\n");
-			kfree(cert);
 			return false;
 		}
 		ksu_kernel_read_compat(fp, cert, *size4, pos);
 		unsigned char digest[SHA256_DIGEST_SIZE];
-		if (ksu_sha256(cert, *size4, digest) < 0) {
+		if (IS_ERR(ksu_sha256(cert, *size4, digest))) {
 			pr_info("sha256 error\n");
-			kfree(cert);
 			return false;
 		}
+
 		char hash_str[SHA256_DIGEST_SIZE * 2 + 1];
 		hash_str[SHA256_DIGEST_SIZE * 2] = '\0';
 
@@ -117,10 +114,8 @@ static bool check_block(struct file *fp, u32 *size4, loff_t *pos, u32 *offset,
 		pr_info("sha256: %s, expected: %s\n", hash_str,
 			expected_sha256);
 		if (strcmp(expected_sha256, hash_str) == 0) {
-			kfree(cert);
 			return true;
 		}
-		kfree(cert);
 	}
 	return false;
 }
@@ -323,11 +318,9 @@ module_param_cb(ksu_debug_manager_uid, &expected_size_ops,
 
 bool is_manager_apk(char *path)
 {
-	return (check_v2_signature(path, 0x363, "4359c171f32543394cbc23ef908c4bb94cad7c8087002ba164c8230948c21549") // dummy.keystore
-	|| check_v2_signature(path, EXPECTED_SIZE, EXPECTED_HASH)  // ksu official
-	|| check_v2_signature(path, 384, "7e0c6d7278a3bb8e364e0fcba95afaf3666cf5ff3c245a3b63c8833bd0445cc4")  // 5ec1cff/KernelSU
-	|| check_v2_signature(path, 0x396, "f415f4ed9435427e1fdf7f1fccd4dbc07b3d6b8751e4dbcec6f19671f427870b")  // rsuntk/KernelSU
-	|| check_v2_signature(path, 0x3e6, "79e590113c4c4c0c222978e413a5faa801666957b1212a328e46c00c69821bf7")  // rifsxd/KernelSU-Next
-	|| check_v2_signature(path, 0x35c, "947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef")  // ShirkNeko/SukiSU-Ultra
-	);
+	// set debug info to print size and hash to kernel log
+	pr_info("%s: expected size: %u, expected hash: %s\n",
+		path, expected_manager_size, expected_manager_hash);
+
+	return check_v2_signature(path, expected_manager_size, expected_manager_hash);
 }
