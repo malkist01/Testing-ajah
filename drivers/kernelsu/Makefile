@@ -1,6 +1,5 @@
 kernelsu-objs := ksu.o
 kernelsu-objs += allowlist.o
-kernelsu-objs += dynamic_manager.o
 kernelsu-objs += apk_sign.o
 kernelsu-objs += sucompat.o
 kernelsu-objs += throne_tracker.o
@@ -8,11 +7,6 @@ kernelsu-objs += core_hook.o
 kernelsu-objs += ksud.o
 kernelsu-objs += embed_ksud.o
 kernelsu-objs += kernel_compat.o
-kernelsu-objs += throne_comm.o
-
-ifeq ($(CONFIG_KSU_TRACEPOINT_HOOK), y)
-kernelsu-objs += ksu_trace.o
-endif
 
 kernelsu-objs += selinux/selinux.o
 kernelsu-objs += selinux/sepolicy.o
@@ -21,9 +15,8 @@ ccflags-y += -I$(srctree)/security/selinux -I$(srctree)/security/selinux/include
 ccflags-y += -I$(objtree)/security/selinux -include $(srctree)/include/uapi/asm-generic/errno.h
 
 obj-$(CONFIG_KSU) += kernelsu.o
-obj-$(CONFIG_KSU_TRACEPOINT_HOOK) += ksu_trace_export.o
 
-$(eval KSU_VERSION=13390)
+$(eval KSU_VERSION=12069)
 $(info -- KernelSU version: $(KSU_VERSION))
 ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
 
@@ -36,11 +29,11 @@ ccflags-y += -DKSU_COMPAT_HAS_SELINUX_STATE
 endif
 
 ifndef KSU_EXPECTED_SIZE
-KSU_EXPECTED_SIZE := 0x35c
+KSU_EXPECTED_SIZE := 0x033b
 endif
 
 ifndef KSU_EXPECTED_HASH
-KSU_EXPECTED_HASH := 947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef
+KSU_EXPECTED_HASH := c371061b19d8c7d7d6133c6a9bafe198fa944e50c1b31c9d8daa8d7f1fc2d2d6
 endif
 
 ifdef KSU_MANAGER_PACKAGE

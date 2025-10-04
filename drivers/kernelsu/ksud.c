@@ -14,14 +14,17 @@
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
 #include <linux/aio.h>
 #endif
-#include <linux/kprobes.h>
 #include <linux/printk.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <linux/workqueue.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/signal.h> /* fatal_signal_pending */
+#else
+#include <linux/sched.h> /* fatal_signal_pending */
+#endif
 
 #include "allowlist.h"
-#include "arch.h"
 #include "klog.h" // IWYU pragma: keep
 #include "ksud.h"
 #include "kernel_compat.h"
@@ -557,3 +560,4 @@ static void stop_input_hook()
 	ksu_input_hook = false;
 	pr_info("stop input_hook\n");
 }
+
