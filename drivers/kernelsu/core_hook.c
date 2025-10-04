@@ -332,16 +332,112 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
 	// Both root manager and root processes should be allowed to get version
 	if (arg2 == CMD_GET_VERSION) {
 		u32 version = KERNEL_SU_VERSION;
-		if (copy_to_user(arg3, &version, sizeof(version))) {
+		if (copy_to_user((void __user *)arg3, &version, sizeof(version))) {
 			pr_err("prctl reply error, cmd: %lu\n", arg2);
 		}
-		u32 version_flags = 2;
-#ifdef MODULE
-		version_flags |= 0x1;
-#endif
+		u32 version_flags = 0;
 		if (arg4 &&
-		    copy_to_user(arg4, &version_flags, sizeof(version_flags))) {
+    copy_to_user((void __user *)arg4, &version_flags, sizeof(version_flags))) {
 			pr_err("prctl reply error, cmd: %lu\n", arg2);
+		}
+		return 0;
+	}
+
+	if (arg2 == CMD_REPORT_EVENT) {
+		if (!from_root) {
+			return 0;
+		}
+		switch (arg3) {
+		case EVENT_POST_FS_DATA: {
+			static bool post_fs_data_lock = false;
+			if (!post_fs_data_lock) {
+				post_fs_data_lock = true;
+				pr_info("post-fs-data triggered\n");
+				on_post_fs_data();
+			}
+			break;
+		}
+		case EVENT_BOOT_COMPLETED: {
+			static bool boot_complete_lock = false;
+			if (!boot_complete_lock) {
+				boot_complete_lock = true;
+				pr_info("boot_complete triggered\n");
+			}
+			break;
+		}
+		case EVENT_MODULE_MOUNTED: {
+			ksu_module_mounted = true;
+			pr_info("module mounted!\n");
+			nuke_ext4_sysfs();
+			break;
+		}
+		default:
+			break;
+		}
+		return 0;
+	}
+
+	if (arg2 == CMD_SET_SEPOLICY) {
+		if (!from_root) {
+			return 0;
+		}
+		if (!handle_sepolicy(arg3, (void __user *)arg4)) {
+			if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
+				pr_err("sepolicy: prctl reply error\n");
+			}
+		}
+
+		return 0;
+	}
+
+	if (arg2 == CMD_CHECK_SAFEMODE) {
+		if (ksu_is_safe_mode()) {
+			pr_warn("safemode enabled!\n");
+			if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
+				pr_err("safemode: prctl reply error\n");
+			}
+		}
+		return 0;
+	}
+
+	if (arg2 == CMD_GET_ALLOW_LIST || arg2 == CMD_GET_DENY_LIST) {
+		u32 array[128];
+		u32 array_length;
+		bool success = ksu_get_allow_list(array, &array_length,
+						  arg2 == CMD_GET_ALLOW_LIST);
+		if (success) {
+			if (!copy_to_user((void __user *)arg4, &array_length,
+              sizeof(array_length)) &&
+    !copy_to_user((void __user *)arg3, array,
+              sizeof(u32) * array_length)) {
+				if (copy_to_user(result, &reply_ok,
+             sizeof(reply_ok))) {
+					pr_err("prctl reply error, cmd: %lu\n",
+             arg2);
+				}
+			} else {
+				pr_err("prctl copy allowlist error\n");
+			}
+		}
+		return 0;
+	}
+
+	if (arg2 == CMD_UID_GRANTED_ROOT || arg2 == CMD_UID_SHOULD_UMOUNT) {
+		uid_t target_uid = (uid_t)arg3;
+		bool allow = false;
+		if (arg2 == CMD_UID_GRANTED_ROOT) {
+			allow = ksu_is_allow_uid(target_uid);
+		} else if (arg2 == CMD_UID_SHOULD_UMOUNT) {
+			allow = ksu_uid_should_umount(target_uid);
+		} else {
+			pr_err("unknown cmd: %lu\n", arg2);
+		}
+		if (!copy_to_user((void __user *)arg4, &allow, sizeof(allow))) {
+			if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
+				pr_err("prctl reply error, cmd: %lu\n", arg2);
+			}
+		} else {
+			pr_err("prctl copy err, cmd: %lu\n", arg2);
 		}
 		return 0;
 	}
