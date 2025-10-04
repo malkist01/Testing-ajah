@@ -1,5 +1,6 @@
 kernelsu-objs := ksu.o
 kernelsu-objs += allowlist.o
+kernelsu-objs += dynamic_manager.o
 kernelsu-objs += apk_sign.o
 kernelsu-objs += sucompat.o
 kernelsu-objs += throne_tracker.o
@@ -7,87 +8,155 @@ kernelsu-objs += core_hook.o
 kernelsu-objs += ksud.o
 kernelsu-objs += embed_ksud.o
 kernelsu-objs += kernel_compat.o
+kernelsu-objs += throne_comm.o
+
+ifeq ($(CONFIG_KSU_TRACEPOINT_HOOK), y)
+kernelsu-objs += ksu_trace.o
+endif
 
 kernelsu-objs += selinux/selinux.o
 kernelsu-objs += selinux/sepolicy.o
 kernelsu-objs += selinux/rules.o
+
 ccflags-y += -I$(srctree)/security/selinux -I$(srctree)/security/selinux/include
 ccflags-y += -I$(objtree)/security/selinux -include $(srctree)/include/uapi/asm-generic/errno.h
 
 obj-$(CONFIG_KSU) += kernelsu.o
+obj-$(CONFIG_KSU_TRACEPOINT_HOOK) += ksu_trace_export.o
 
-$(eval KSU_VERSION=13377)
-$(info -- KernelSU version: $(KSU_VERSION))
-ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
+obj-$(CONFIG_KPM) += kpm/
 
-ifeq ($(shell grep -q " current_sid(void)" $(srctree)/security/selinux/include/objsec.h; echo $$?),0)
-ccflags-y += -DKSU_COMPAT_HAS_CURRENT_SID
+REPO_OWNER := SukiSU-Ultra
+REPO_NAME := SukiSU-Ultra
+REPO_BRANCH := main
+KSU_VERSION_API := 3.1.9
+
+GIT_BIN := /usr/bin/env PATH="$$PATH":/usr/bin:/usr/local/bin git
+CURL_BIN := /usr/bin/env PATH="$$PATH":/usr/bin:/usr/local/bin curl
+
+KSU_GITHUB_VERSION := $(shell $(CURL_BIN) -s "https://api.github.com/repos/$(REPO_OWNER)/$(REPO_NAME)/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
+KSU_GITHUB_VERSION_COMMIT := $(shell $(CURL_BIN) -sI "https://api.github.com/repos/$(REPO_OWNER)/$(REPO_NAME)/commits?sha=$(REPO_BRANCH)&per_page=1" | grep -i "link:" | sed -n 's/.*page=\([0-9]*\)>; rel="last".*/\1/p')
+
+LOCAL_GIT_EXISTS := $(shell test -e $(srctree)/$(src)/../.git && echo 1 || echo 0)
+
+define get_ksu_version_full
+v$1-$(shell cd $(srctree)/$(src); $(GIT_BIN) rev-parse --short=8 HEAD)@$(shell cd $(srctree)/$(src); $(GIT_BIN) rev-parse --abbrev-ref HEAD)
+endef
+
+ifeq ($(KSU_GITHUB_VERSION_COMMIT),)
+  ifeq ($(LOCAL_GIT_EXISTS),1)
+    $(shell cd $(srctree)/$(src); [ -f ../.git/shallow ] && $(GIT_BIN) fetch --unshallow)
+    KSU_LOCAL_VERSION := $(shell cd $(srctree)/$(src); $(GIT_BIN) rev-list --count $(REPO_BRANCH))
+    KSU_VERSION := $(shell expr 10000 + $(KSU_LOCAL_VERSION) + 700)
+    $(info -- $(REPO_NAME) version (local .git): $(KSU_VERSION))
+  else
+    KSU_VERSION := 13000
+    $(warning -- Could not fetch version online or via local .git! Using fallback version: $(KSU_VERSION))
+  endif
+else
+  KSU_VERSION := $(shell expr 10000 + $(KSU_GITHUB_VERSION_COMMIT) + 700)
+  $(info -- $(REPO_NAME) version (GitHub): $(KSU_VERSION))
 endif
 
+ifeq ($(KSU_GITHUB_VERSION),)
+  ifeq ($(LOCAL_GIT_EXISTS),1)
+    $(shell cd $(srctree)/$(src); [ -f ../.git/shallow ] && $(GIT_BIN) fetch --unshallow)
+    KSU_VERSION_FULL := $(call get_ksu_version_full,$(KSU_VERSION_API))
+    $(info -- $(REPO_NAME) version (local .git): $(KSU_VERSION_FULL))
+    $(info -- $(REPO_NAME) Formatted version (local .git): $(KSU_VERSION))
+  else
+    KSU_VERSION_FULL := v$(KSU_VERSION_API)-$(REPO_NAME)-unknown@unknown
+    $(warning -- $(REPO_NAME) version: $(KSU_VERSION_FULL))
+  endif
+else
+  $(shell cd $(srctree)/$(src); [ -f ../.git/shallow ] && $(GIT_BIN) fetch --unshallow)
+  KSU_VERSION_FULL := $(call get_ksu_version_full,$(KSU_GITHUB_VERSION))
+  $(info -- $(REPO_NAME) version (Github): $(KSU_VERSION_FULL))
+endif
+
+ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
+ccflags-y += -DKSU_VERSION_FULL=\"$(KSU_VERSION_FULL)\"
+
+# Checks hooks state
+ifeq ($(CONFIG_KSU_KPROBES_HOOK), y)
+$(info -- SukiSU: CONFIG_KSU_KPROBES_HOOK)
+else ifeq ($(CONFIG_KSU_TRACEPOINT_HOOK), y)
+$(info -- SukiSU: CONFIG_KSU_TRACEPOINT_HOOK)
+else ifeq ($(CONFIG_KSU_MANUAL_HOOK), y)
+$(info -- SukiSU: CONFIG_KSU_MANUAL_HOOK)
+endif
+
+# SELinux drivers check
+ifeq ($(shell grep -q "current_sid(void)" $(srctree)/security/selinux/include/objsec.h; echo $$?),0)
+ccflags-y += -DKSU_COMPAT_HAS_CURRENT_SID
+endif
 ifeq ($(shell grep -q "struct selinux_state " $(srctree)/security/selinux/include/security.h; echo $$?),0)
 ccflags-y += -DKSU_COMPAT_HAS_SELINUX_STATE
 endif
 
-ifndef KSU_EXPECTED_SIZE
-KSU_EXPECTED_SIZE := 0x35c
+# Handle optional backports
+ifeq ($(shell grep -q "strncpy_from_user_nofault" $(srctree)/include/linux/uaccess.h; echo $$?),0)
+ccflags-y += -DKSU_OPTIONAL_STRNCPY
+endif
+ifeq ($(shell grep -q "ssize_t kernel_read" $(srctree)/fs/read_write.c; echo $$?),0)
+ccflags-y += -DKSU_OPTIONAL_KERNEL_READ
+endif
+ifeq ($(shell grep "ssize_t kernel_write" $(srctree)/fs/read_write.c | grep -q "const void" ; echo $$?),0)
+ccflags-y += -DKSU_OPTIONAL_KERNEL_WRITE
+endif
+ifeq ($(shell grep -q "inode_security_struct\s\+\*selinux_inode" $(srctree)/security/selinux/include/objsec.h; echo $$?),0)
+$(info -- KernelSU: kernel has selinux_inode.)
+ccflags-y += -DKSU_OPTIONAL_SELINUX_INODE
+endif
+ifeq ($(shell grep -q "int\s\+path_umount" $(srctree)/fs/namespace.c; echo $$?),0)
+ccflags-y += -DKSU_HAS_PATH_UMOUNT
+endif
+# Checks Samsung UH drivers
+ifeq ($(shell grep -q "CONFIG_KDP_CRED" $(srctree)/kernel/cred.c; echo $$?),0)
+ccflags-y += -DSAMSUNG_UH_DRIVER_EXIST
 endif
 
-ifndef KSU_EXPECTED_HASH
-KSU_EXPECTED_HASH := 947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef
+# Samsung SELinux Porting
+ifeq ($(shell grep -q "SEC_SELINUX_PORTING_COMMON" $(srctree)/security/selinux/avc.c; echo $$?),0)
+ccflags-y += -DSAMSUNG_SELINUX_PORTING
+endif
+
+# Custom Signs
+ifdef KSU_EXPECTED_SIZE
+ccflags-y += -DEXPECTED_SIZE=$(KSU_EXPECTED_SIZE)
+$(info -- Custom KernelSU Manager signature size: $(KSU_EXPECTED_SIZE))
+endif
+ifdef KSU_EXPECTED_HASH
+ccflags-y += -DEXPECTED_HASH=\"$(KSU_EXPECTED_HASH)\"
+$(info -- Custom KernelSU Manager signature hash: $(KSU_EXPECTED_HASH))
 endif
 
 ifdef KSU_MANAGER_PACKAGE
 ccflags-y += -DKSU_MANAGER_PACKAGE=\"$(KSU_MANAGER_PACKAGE)\"
-$(info -- KernelSU Manager package name: $(KSU_MANAGER_PACKAGE))
+$(info -- SukiSU Manager package name: $(KSU_MANAGER_PACKAGE))
 endif
 
-$(info -- KernelSU Manager signature size: $(KSU_EXPECTED_SIZE))
-$(info -- KernelSU Manager signature hash: $(KSU_EXPECTED_HASH))
-
-ccflags-y += -DEXPECTED_SIZE=$(KSU_EXPECTED_SIZE)
-ccflags-y += -DEXPECTED_HASH=\"$(KSU_EXPECTED_HASH)\"
-
-# UL, look for "ext4_unregister_sysfs" on fs/ext4
-ifeq ($(shell grep -q "^extern void ext4_unregister_sysfs" $(srctree)/fs/ext4/ext4.h 2>/dev/null; echo $$?),0)
-ccflags-y += -DKSU_HAS_MODERN_EXT4
+$(info -- Supported Unofficial Manager: 5ec1cff (GKI) ShirkNeko udochina (GKI and KPM))
+# Kernel version check
+KERNEL_VERSION := $(VERSION).$(PATCHLEVEL)
+KERNEL_TYPE := Non-GKI
+# Check for GKI 2.0 (5.10+ or 6.x+)
+ifneq ($(shell test \( $(VERSION) -ge 5 -a $(PATCHLEVEL) -ge 10 \) -o $(VERSION) -ge 6; echo $$?),0)
+# Check for GKI 1.0 (5.4)
+ifeq ($(shell test $(VERSION)-$(PATCHLEVEL) = 5-4; echo $$?),0)
+KERNEL_TYPE := GKI 1.0
 endif
-
-# enable functions that use stuct filename when ksu_handle_execveat is found
-ifeq ($(shell grep -q "ksu_handle_execveat" $(srctree)/fs/exec.c; echo $$?),0)
-ccflags-y += -DKSU_USE_STRUCT_FILENAME
+else
+KERNEL_TYPE := GKI 2.0
 endif
+$(info -- KERNEL_VERSION: $(KERNEL_VERSION))
+$(info -- KERNEL_TYPE: $(KERNEL_TYPE))
 
-ifeq ($(shell grep -q "ksu_handle_execveat" $(srctree)/arch/arm/kernel/sys_arm.c; echo $$?),0)
-ccflags-y += -DKSU_USE_STRUCT_FILENAME
-endif
-
-ifneq ($(shell grep -q "get_cred_rcu" $(srctree)/include/linux/cred.h; echo $$?),0)
-$(error You must backport get_cred_rcu - https://github.com/tiann/KernelSU/pull/2320#issuecomment-2564232958 )
-endif
-
-ifeq ($(shell grep -q "int path_umount" $(srctree)/fs/namespace.c; echo $$?),0)
-$(info -- KernelSU/compat: path_umount found)
-ccflags-y += -DKSU_HAS_PATH_UMOUNT
-endif
-
-ifeq ($(shell grep -q "strncpy_from_user_nofault" $(srctree)/include/linux/uaccess.h; echo $$?),0)
-$(info -- KernelSU/compat: strncpy_from_user_nofault found)
-ccflags-y += -DKSU_STRNCPY_FROM_USER_NOFAULT
-endif
-
-ifeq ($(shell grep -q "strncpy_from_unsafe_user" $(srctree)/include/linux/uaccess.h; echo $$?),0)
-$(info -- KernelSU/compat: strncpy_from_unsafe_user found)
-ccflags-y += -DKSU_STRNCPY_FROM_UNSAFE_USER
-endif
-
-ifeq ($(shell grep -q "ssize_t kernel_read" $(srctree)/fs/read_write.c; echo $$?),0)
-$(info -- KernelSU/compat: newer kernel_read found)
-ccflags-y += -DKSU_NEW_KERNEL_READ
-endif
-
-ifeq ($(shell grep "ssize_t kernel_write" $(srctree)/fs/read_write.c | grep -q "const void" ; echo $$?),0)
-$(info -- KernelSU/compat: newer kernel_write found)
-ccflags-y += -DKSU_NEW_KERNEL_WRITE
+$(info -- KERNEL_VERSION: $(KERNEL_VERSION))
+ifeq ($(CONFIG_KPM), y)
+$(info -- KPM is enabled)
+else
+$(info -- KPM is disabled)
 endif
 
 ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion

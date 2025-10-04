@@ -12,9 +12,8 @@
 #include "manager.h"
 #include "throne_tracker.h"
 #include "kernel_compat.h"
-
-#include <linux/kthread.h>
-#include <linux/sched.h>
+#include "dynamic_manager.h"
+#include "throne_comm.h"
 
 uid_t ksu_manager_uid = KSU_INVALID_UID;
 

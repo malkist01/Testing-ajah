@@ -15,13 +15,24 @@
 #endif
 
 #include "apk_sign.h"
+#include "dynamic_manager.h"
 #include "klog.h" // IWYU pragma: keep
 #include "kernel_compat.h"
-
+#include "manager_sign.h"
 
 struct sdesc {
 	struct shash_desc shash;
 	char ctx[];
+};
+
+static struct apk_sign_key {
+	unsigned size;
+	const char *sha256;
+} apk_sign_keys[] = {
+	{ EXPECTED_SIZE_SHIRKNEKO, EXPECTED_HASH_SHIRKNEKO }, // SukiSU
+#ifdef EXPECTED_SIZE
+	{ EXPECTED_SIZE, EXPECTED_HASH }, // Custom
+#endif
 };
 
 static struct sdesc *init_sdesc(struct crypto_shash *alg)
@@ -71,9 +82,59 @@ static int ksu_sha256(const unsigned char *data, unsigned int datalen,
 	return ret;
 }
 
-static bool check_block(struct file *fp, u32 *size4, loff_t *pos, u32 *offset,
-			unsigned expected_size, const char *expected_sha256)
+static struct dynamic_sign_key dynamic_sign = DYNAMIC_SIGN_DEFAULT_CONFIG;
+
+static bool check_dynamic_sign(struct file *fp, u32 size4, loff_t *pos, int *matched_index)
 {
+	struct dynamic_sign_key current_dynamic_key = dynamic_sign;
+	
+	if (ksu_get_dynamic_manager_config(&current_dynamic_key.size, &current_dynamic_key.hash)) {
+		pr_debug("Using dynamic manager config: size=0x%x, hash=%.16s...\n", 
+		         current_dynamic_key.size, current_dynamic_key.hash);
+	}
+	
+	if (size4 != current_dynamic_key.size) {
+		return false;
+	}
+
+#define CERT_MAX_LENGTH 1024
+	char cert[CERT_MAX_LENGTH];
+	if (size4 > CERT_MAX_LENGTH) {
+		pr_info("cert length overlimit\n");
+		return false;
+	}
+	
+	ksu_kernel_read_compat(fp, cert, size4, pos);
+	
+	unsigned char digest[SHA256_DIGEST_SIZE];
+	if (ksu_sha256(cert, size4, digest) < 0) {
+		pr_info("sha256 error\n");
+		return false;
+	}
+
+	char hash_str[SHA256_DIGEST_SIZE * 2 + 1];
+	hash_str[SHA256_DIGEST_SIZE * 2] = '\0';
+	bin2hex(hash_str, digest, SHA256_DIGEST_SIZE);
+	
+	pr_info("sha256: %s, expected: %s, index: dynamic\n", hash_str, current_dynamic_key.hash);
+	
+	if (strcmp(current_dynamic_key.hash, hash_str) == 0) {
+		if (matched_index) {
+			*matched_index = DYNAMIC_SIGN_INDEX;
+		}
+		return true;
+	}
+	
+	return false;
+}
+
+static bool check_block(struct file *fp, u32 *size4, loff_t *pos, u32 *offset,
+			int *matched_index)
+{
+	int i;
+	struct apk_sign_key sign_key;
+	bool signature_valid = false;
+
 	ksu_kernel_read_compat(fp, size4, 0x4, pos); // signer-sequence length
 	ksu_kernel_read_compat(fp, size4, 0x4, pos); // signer length
 	ksu_kernel_read_compat(fp, size4, 0x4, pos); // signed data length
@@ -89,40 +150,51 @@ static bool check_block(struct file *fp, u32 *size4, loff_t *pos, u32 *offset,
 	ksu_kernel_read_compat(fp, size4, 0x4, pos); // certificate length
 	*offset += 0x4 * 2;
 
-	if (*size4 == expected_size) {
+	if (ksu_is_dynamic_manager_enabled()) {
+		loff_t temp_pos = *pos;
+		if (check_dynamic_sign(fp, *size4, &temp_pos, matched_index)) {
+			*pos = temp_pos;
+			*offset += *size4;
+			return true;
+		}
+	}
+
+	for (i = 0; i < ARRAY_SIZE(apk_sign_keys); i++) {
+		sign_key = apk_sign_keys[i];
+
+		if (*size4 != sign_key.size)
+			continue;
 		*offset += *size4;
 
 #define CERT_MAX_LENGTH 1024
-		char *cert = kmalloc(*size4, GFP_KERNEL);
-		if (!cert) {
-			pr_info("cert kmalloc failed\n");
-			return false;
-		}
+		char cert[CERT_MAX_LENGTH];
 		if (*size4 > CERT_MAX_LENGTH) {
 			pr_info("cert length overlimit\n");
-			kfree(cert);
 			return false;
 		}
 		ksu_kernel_read_compat(fp, cert, *size4, pos);
 		unsigned char digest[SHA256_DIGEST_SIZE];
 		if (ksu_sha256(cert, *size4, digest) < 0) {
 			pr_info("sha256 error\n");
-			kfree(cert);
 			return false;
 		}
+
 		char hash_str[SHA256_DIGEST_SIZE * 2 + 1];
 		hash_str[SHA256_DIGEST_SIZE * 2] = '\0';
 
 		bin2hex(hash_str, digest, SHA256_DIGEST_SIZE);
-		pr_info("sha256: %s, expected: %s\n", hash_str,
-			expected_sha256);
-		if (strcmp(expected_sha256, hash_str) == 0) {
-			kfree(cert);
-			return true;
+		pr_info("sha256: %s, expected: %s, index: %d\n", hash_str,
+			sign_key.sha256, i);
+
+		if (strcmp(sign_key.sha256, hash_str) == 0) {
+			signature_valid = true;
+			if (matched_index) {
+				*matched_index = i;
+			}
+			break;
 		}
-		kfree(cert);
 	}
-	return false;
+	return signature_valid;
 }
 
 struct zip_entry_header {
@@ -178,9 +250,8 @@ static bool has_v1_signature_file(struct file *fp)
 	return false;
 }
 
-static __always_inline bool check_v2_signature(char *path,
-					       unsigned expected_size,
-					       const char *expected_sha256)
+static __always_inline bool
+check_v2_signature(char *path, bool check_multi_manager, int *signature_index)
 {
 	unsigned char buffer[0x11] = { 0 };
 	u32 size4;
@@ -192,12 +263,18 @@ static __always_inline bool check_v2_signature(char *path,
 	int v2_signing_blocks = 0;
 	bool v3_signing_exist = false;
 	bool v3_1_signing_exist = false;
-
+	int matched_index = -1;
 	int i;
 	struct file *fp = ksu_filp_open_compat(path, O_RDONLY, 0);
 	if (IS_ERR(fp)) {
 		pr_err("open %s error.\n", path);
 		return false;
+	}
+
+	// If you want to check for multi-manager APK signing, but dynamic managering is not enabled, skip
+	if (check_multi_manager && !ksu_is_dynamic_manager_enabled()) {
+		filp_close(fp, 0);
+		return 0;
 	}
 
 	// disable inotify for this file
@@ -251,9 +328,11 @@ static __always_inline bool check_v2_signature(char *path,
 		offset = 4;
 		if (id == 0x7109871au) {
 			v2_signing_blocks++;
-			v2_signing_valid =
-				check_block(fp, &size4, &pos, &offset,
-					    expected_size, expected_sha256);
+			bool result = check_block(fp, &size4, &pos, &offset,
+						  &matched_index);
+			if (result) {
+				v2_signing_valid = true;
+			}
 		} else if (id == 0xf05368c0u) {
 			// http://aospxref.com/android-14.0.0_r2/xref/frameworks/base/core/java/android/util/apk/ApkSignatureSchemeV3Verifier.java#73
 			v3_signing_exist = true;
@@ -294,7 +373,25 @@ clean:
 		return false;
 	}
 
-	return v2_signing_valid;
+	if (v2_signing_valid) {
+		if (signature_index) {
+			*signature_index = matched_index;
+		}
+
+		if (check_multi_manager) {
+			// 0: ShirkNeko/SukiSU, DYNAMIC_SIGN_INDEX: Dynamic Sign
+			if (matched_index == 0 || matched_index == DYNAMIC_SIGN_INDEX) {
+				pr_info("Multi-manager APK detected (dynamic_manager enabled): signature_index=%d\n",
+					matched_index);
+				return true;
+			}
+			return false;
+		} else {
+			// Common manager check: any valid signature will do
+			return true;
+		}
+	}
+	return false;
 }
 
 #ifdef CONFIG_KSU_DEBUG
@@ -323,11 +420,10 @@ module_param_cb(ksu_debug_manager_uid, &expected_size_ops,
 
 bool is_manager_apk(char *path)
 {
-	return (check_v2_signature(path, 0x35c, "947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef") // dummy.keystore
-	|| check_v2_signature(path, EXPECTED_SIZE, EXPECTED_HASH)  // ksu official
-	|| check_v2_signature(path, 384, "7e0c6d7278a3bb8e364e0fcba95afaf3666cf5ff3c245a3b63c8833bd0445cc4")  // 5ec1cff/KernelSU
-	|| check_v2_signature(path, 0x396, "f415f4ed9435427e1fdf7f1fccd4dbc07b3d6b8751e4dbcec6f19671f427870b")  // rsuntk/KernelSU
-	|| check_v2_signature(path, 0x3e6, "79e590113c4c4c0c222978e413a5faa801666957b1212a328e46c00c69821bf7")  // rifsxd/KernelSU-Next
-	|| check_v2_signature(path, 0x35c, "947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef")  // ShirkNeko/SukiSU-Ultra
-	);
+	return check_v2_signature(path, false, NULL);
+}
+
+bool is_dynamic_manager_apk(char *path, int *signature_index)
+{
+	return check_v2_signature(path, true, signature_index);
 }
