@@ -319,8 +319,10 @@ int security_sb_statfs(struct dentry *dentry)
 int security_sb_mount(const char *dev_name, struct path *path,
                        const char *type, unsigned long flags, void *data)
 {
+#ifdef
 	ksu_sb_mount(dev_name, path, type, flags, data);
 	return security_ops->sb_mount(dev_name, path, type, flags, data);
+#endif
 }
 
 int security_sb_umount(struct vfsmount *mnt, int flags)
