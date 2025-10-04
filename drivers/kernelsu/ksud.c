@@ -474,3 +474,4 @@ static void stop_input_hook()
 	ksu_input_hook = false;
 	pr_info("stop input_hook\n");
 }
+

@@ -126,17 +126,26 @@ struct my_dir_context {
 #define FILLDIR_RETURN_TYPE bool
 #define FILLDIR_ACTOR_CONTINUE true
 #define FILLDIR_ACTOR_STOP false
-typedef int (*filldir_t)(struct dir_context *, const char *, int, loff_t, u64, unsigned int);
 #else
 #define FILLDIR_RETURN_TYPE int
 #define FILLDIR_ACTOR_CONTINUE 0
 #define FILLDIR_ACTOR_STOP -EINVAL
 #endif
 
-FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
+#define MY_ACTOR_CTX_ARG struct dir_context *ctx
+#else
+#define MY_ACTOR_CTX_ARG void *ctx_void
+#endif
+
+FILLDIR_RETURN_TYPE my_actor(MY_ACTOR_CTX_ARG, const char *name,
 			     int namelen, loff_t off, u64 ino,
 			     unsigned int d_type)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
+	// then pull it out of the void
+	struct dir_context *ctx = (struct dir_context *)ctx_void;
+#endif
 	struct my_dir_context *my_ctx =
 		container_of(ctx, struct my_dir_context, ctx);
 	char dirpath[DATA_PATH_LEN];
@@ -175,11 +184,7 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
 			return FILLDIR_ACTOR_CONTINUE;
 		}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
-		strlcpy(data->dirpath, dirpath, DATA_PATH_LEN);
-#else
 		strscpy(data->dirpath, dirpath, DATA_PATH_LEN);
-#endif
 		data->depth = my_ctx->depth - 1;
 		list_add_tail(&data->list, my_ctx->data_path_list);
 	} else {
@@ -221,12 +226,20 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
 	return FILLDIR_ACTOR_CONTINUE;
 }
 
+// compat: https://elixir.bootlin.com/linux/v3.9/source/include/linux/fs.h#L771
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0)
+#define S_MAGIC_COMPAT(x) ((x)->f_inode->i_sb->s_magic)
+#else
+#define S_MAGIC_COMPAT(x) ((x)->f_path.dentry->d_inode->i_sb->s_magic)
+#endif
+
 void search_manager(const char *path, int depth, struct list_head *uid_data)
 {
 	int i, stop = 0;
 	struct list_head data_path_list;
 	INIT_LIST_HEAD(&data_path_list);
-
+	unsigned long data_app_magic = 0;
+	
 	// Initialize APK cache list
 	struct apk_path_hash *pos, *n;
 	list_for_each_entry(pos, &apk_path_hash_list, list) {
@@ -235,11 +248,7 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
 
 	// First depth
 	struct data_path data;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
-	strlcpy(data.dirpath, path, DATA_PATH_LEN);
-#else
 	strscpy(data.dirpath, path, DATA_PATH_LEN);
-#endif
 	data.depth = depth;
 	list_add_tail(&data.list, &data_path_list);
 
@@ -247,7 +256,7 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
 		struct data_path *pos, *n;
 
 		list_for_each_entry_safe(pos, n, &data_path_list, list) {
-			struct my_dir_context ctx = { .ctx.actor = (filldir_t)my_actor,
+			struct my_dir_context ctx = { .ctx.actor = my_actor,
 						      .data_path_list = &data_path_list,
 						      .parent_dir = pos->dirpath,
 						      .private_data = uid_data,
@@ -256,9 +265,27 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
 			struct file *file;
 
 			if (!stop) {
-				file = ksu_filp_open_compat(pos->dirpath, O_RDONLY | O_NOFOLLOW, 0);
+				file = ksu_filp_open_compat(pos->dirpath, O_RDONLY | O_NOFOLLOW | O_DIRECTORY, 0);
 				if (IS_ERR(file)) {
 					pr_err("Failed to open directory: %s, err: %ld\n", pos->dirpath, PTR_ERR(file));
+					goto skip_iterate;
+				}
+				
+				// grab magic on first folder, which is /data/app
+				if (!data_app_magic) {
+					if (S_MAGIC_COMPAT(file)) {
+						data_app_magic = S_MAGIC_COMPAT(file);
+						pr_info("%s: dir: %s got magic! 0x%lx\n", __func__, pos->dirpath, data_app_magic);
+					} else {
+						filp_close(file, NULL);
+						goto skip_iterate;
+					}
+				}
+				
+				if (S_MAGIC_COMPAT(file) != data_app_magic) {
+					pr_info("%s: skip: %s magic: 0x%lx expected: 0x%lx\n", __func__, pos->dirpath, 
+						S_MAGIC_COMPAT(file), data_app_magic);
+					filp_close(file, NULL);
 					goto skip_iterate;
 				}
 
@@ -299,13 +326,25 @@ static bool is_uid_exist(uid_t uid, char *package, void *data)
 
 static void track_throne_function()
 {
-	struct file *fp =
-		ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
+	struct file *fp;
+	int tries = 0;
+
+	while (tries++ < 10) {
+		if (!is_lock_held(SYSTEM_PACKAGES_LIST_PATH)) {
+			fp = ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
+			if (!IS_ERR(fp)) 
+				break;
+		}
+		
+		pr_info("%s: waiting for %s\n", __func__, SYSTEM_PACKAGES_LIST_PATH);
+		msleep(100); // migth as well add a delay
+	};
+	
 	if (IS_ERR(fp)) {
-		pr_err("%s: open " SYSTEM_PACKAGES_LIST_PATH " failed: %ld\n",
-		       __func__, PTR_ERR(fp));
+		pr_err("%s: open " SYSTEM_PACKAGES_LIST_PATH " failed: %ld\n", __func__, PTR_ERR(fp));
 		return;
-	}
+	} else
+		pr_info("%s: %s found!\n", __func__, SYSTEM_PACKAGES_LIST_PATH);
 
 	struct list_head uid_list;
 	INIT_LIST_HEAD(&uid_list);
@@ -397,15 +436,29 @@ static int throne_tracker_thread(void *data)
 	pr_info("%s: pid: %d started\n", __func__, current->pid);
 	track_throne_function();
 	throne_thread = NULL;
+	smp_mb();
 	pr_info("%s: pid: %d exit!\n", __func__, current->pid);
 	return 0;
 }
 
 void track_throne()
 {
+#ifndef CONFIG_KSU_THRONE_TRACKER_ALWAYS_THREADED
+	static bool throne_tracker_first_run __read_mostly = true;
+	if (unlikely(throne_tracker_first_run)) {
+		track_throne_function();
+		throne_tracker_first_run = false;
+		return;
+	}
+#endif
+	smp_mb();
+	if (throne_thread != NULL) // single instance lock
+		return;
+
 	throne_thread = kthread_run(throne_tracker_thread, NULL, "throne_tracker");
 	if (IS_ERR(throne_thread)) {
 		throne_thread = NULL;
+		return;
 	}
 }
 
