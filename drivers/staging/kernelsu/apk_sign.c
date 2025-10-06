@@ -17,11 +17,22 @@
 #include "apk_sign.h"
 #include "klog.h" // IWYU pragma: keep
 #include "kernel_compat.h"
+#include "manager_sign.h"
 
 
 struct sdesc {
 	struct shash_desc shash;
 	char ctx[];
+};
+
+static struct apk_sign_key {
+	unsigned size;
+	const char *sha256;
+} apk_sign_keys[] = {
+	{ EXPECTED_SIZE_SHIRKNEKO, EXPECTED_HASH_SHIRKNEKO }, // SukiSU
+#ifdef EXPECTED_SIZE
+	{ EXPECTED_SIZE, EXPECTED_HASH }, // Custom
+#endif
 };
 
 static struct sdesc *init_sdesc(struct crypto_shash *alg)
