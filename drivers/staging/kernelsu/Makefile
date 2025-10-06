@@ -46,13 +46,7 @@ $(info -- Wild KSU Manager signature size: $(WKSU_MANAGER_SIZE))
 $(info -- Wild KSU Manager signature hash: $(WKSU_MANAGER_HASH))
 
 ccflags-y += -DEXPECTED_MANAGER_SIZE=$(WKSU_MANAGER_SIZE)
-ccflags-y += -DEXPECTED_MANAGER_HASH=\"$(WKSU_MANAGER_HASH)\"
-
-$(info -- KernelSU Manager signature size: $(KSU_EXPECTED_SIZE))
-$(info -- KernelSU Manager signature hash: $(KSU_EXPECTED_HASH))
-
-ccflags-y += -DEXPECTED_SIZE=$(KSU_EXPECTED_SIZE)
-ccflags-y += -DEXPECTED_HASH=\"$(KSU_EXPECTED_HASH)\"
+ccflags-y += -DEXPECTED_MANAGER_HASH=\"$(WKSU_MANAGER_HASH) \
 
 # UL, look for "ext4_unregister_sysfs" on fs/ext4
 ifeq ($(shell grep -q "^extern void ext4_unregister_sysfs" $(srctree)/fs/ext4/ext4.h 2>/dev/null; echo $$?),0)
