@@ -16,8 +16,8 @@ ccflags-y += -I$(objtree)/security/selinux -include $(srctree)/include/uapi/asm-
 
 obj-$(CONFIG_KSU) += kernelsu.o
 
-$(eval KSU_VERSION=12069)
-$(info -- KernelSU version: $(KSU_VERSION))
+$(eval WKSU_VERSION=12069)
+$(info -- Wild KSU version: $(KSU_VERSION))
 ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
 
 ifeq ($(shell grep -q " current_sid(void)" $(srctree)/security/selinux/include/objsec.h; echo $$?),0)
@@ -28,18 +28,25 @@ ifeq ($(shell grep -q "struct selinux_state " $(srctree)/security/selinux/includ
 ccflags-y += -DKSU_COMPAT_HAS_SELINUX_STATE
 endif
 
-ifndef KSU_EXPECTED_SIZE
-KSU_EXPECTED_SIZE := 0x033b
+ifndef WKSU_EXPECTED_SIZE
+ifndef WKSU_MANAGER_SIZE
+WKSU_MANAGER_SIZE := 0x39b
 endif
 
-ifndef KSU_EXPECTED_HASH
-KSU_EXPECTED_HASH := c371061b19d8c7d7d6133c6a9bafe198fa944e50c1b31c9d8daa8d7f1fc2d2d6
+ifndef WKSU_MANAGER_HASH
+WKSU_MANAGER_HASH := 593d4ce870c02468639efeef631e07ca4d852d63f154be56706229f9a5be0800
 endif
 
 ifdef KSU_MANAGER_PACKAGE
 ccflags-y += -DKSU_MANAGER_PACKAGE=\"$(KSU_MANAGER_PACKAGE)\"
-$(info -- KernelSU Manager package name: $(KSU_MANAGER_PACKAGE))
+$(info -- Wild KSU Manager package name: $(KSU_MANAGER_PACKAGE))
 endif
+
+$(info -- Wild KSU Manager signature size: $(WKSU_MANAGER_SIZE))
+$(info -- Wild KSU Manager signature hash: $(WKSU_MANAGER_HASH))
+
+ccflags-y += -DEXPECTED_MANAGER_SIZE=$(WKSU_MANAGER_SIZE)
+ccflags-y += -DEXPECTED_MANAGER_HASH=\"$(WKSU_MANAGER_HASH)\"
 
 $(info -- KernelSU Manager signature size: $(KSU_EXPECTED_SIZE))
 $(info -- KernelSU Manager signature hash: $(KSU_EXPECTED_HASH))
