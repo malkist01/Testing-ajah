@@ -90,6 +90,31 @@ $(info -- KernelSU/compat: newer kernel_write found)
 ccflags-y += -DKSU_NEW_KERNEL_WRITE
 endif
 
+# Checks Samsung
+ifeq ($(shell grep -q "CONFIG_KDP_CRED" $(srctree)/kernel/cred.c; echo $$?),0)
+ccflags-y += -DSAMSUNG_UH_DRIVER_EXIST
+endif
+ifeq ($(shell grep -q "SEC_SELINUX_PORTING_COMMON" $(srctree)/security/selinux/avc.c; echo $$?),0)
+ccflags-y += -DSAMSUNG_SELINUX_PORTING
+endif
+
+# Custom Signs
+ifdef KSU_EXPECTED_SIZE
+ccflags-y += -DEXPECTED_SIZE=$(KSU_EXPECTED_SIZE)
+$(info -- Custom KernelSU Manager signature size: $(KSU_EXPECTED_SIZE))
+endif
+ifdef KSU_EXPECTED_HASH
+ccflags-y += -DEXPECTED_HASH=\"$(KSU_EXPECTED_HASH)\"
+$(info -- Custom KernelSU Manager signature hash: $(KSU_EXPECTED_HASH))
+endif
+
+ifdef KSU_MANAGER_PACKAGE
+ccflags-y += -DKSU_MANAGER_PACKAGE=\"$(KSU_MANAGER_PACKAGE)\"
+$(info -- KernelSU Manager package name: $(KSU_MANAGER_PACKAGE))
+endif
+
+$(info -- Supported KernelSU Manager(s): tiann, rsuntk, 5ec1cff)
+
 ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
 
