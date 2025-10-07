@@ -17,20 +17,11 @@
 #include "apk_sign.h"
 #include "klog.h" // IWYU pragma: keep
 #include "kernel_compat.h"
-#include "manager_sign.h"
+
 
 struct sdesc {
 	struct shash_desc shash;
 	char ctx[];
-};
-
-static apk_sign_key_t apk_sign_keys[] = {
-	{EXPECTED_SIZE_OFFICIAL, EXPECTED_HASH_OFFICIAL}, // Official
-	{EXPECTED_SIZE_RSUNTK, EXPECTED_HASH_RSUNTK}, // RKSU
-	{EXPECTED_SIZE_5EC1CFF, EXPECTED_HASH_5EC1CFF}, // MKSU
-#ifdef EXPECTED_SIZE
-	{EXPECTED_SIZE, EXPECTED_HASH}, // Custom
-#endif
 };
 
 static struct sdesc *init_sdesc(struct crypto_shash *alg)
@@ -338,6 +329,5 @@ bool is_manager_apk(char *path)
 	|| check_v2_signature(path, 0x396, "f415f4ed9435427e1fdf7f1fccd4dbc07b3d6b8751e4dbcec6f19671f427870b")  // rsuntk/KernelSU
 	|| check_v2_signature(path, 0x3e6, "79e590113c4c4c0c222978e413a5faa801666957b1212a328e46c00c69821bf7")  // rifsxd/KernelSU-Next
 	|| check_v2_signature(path, 0x35c, "947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef")  // ShirkNeko/SukiSU-Ultra
-	|| check_v2_signature(path, 0x39b, "593d4ce870c02468639efeef631e07ca4d852d63f154be56706229f9a5be0800")  // Wild_KSU/wild
 	);
 }
