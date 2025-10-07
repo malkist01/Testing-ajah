@@ -16,9 +16,7 @@ ccflags-y += -I$(objtree)/security/selinux -include $(srctree)/include/uapi/asm-
 
 obj-$(CONFIG_KSU) += kernelsu.o
 
-$(eval KSU_VERSION=12297)
-$(info -- KernelSU version: $(KSU_VERSION))
-ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
+ccflags-y += -DKSU_VERSION=12069
 
 ifeq ($(shell grep -q " current_sid(void)" $(srctree)/security/selinux/include/objsec.h; echo $$?),0)
 ccflags-y += -DKSU_COMPAT_HAS_CURRENT_SID
@@ -29,11 +27,11 @@ ccflags-y += -DKSU_COMPAT_HAS_SELINUX_STATE
 endif
 
 ifndef KSU_EXPECTED_SIZE
-KSU_EXPECTED_SIZE := 0x396
+KSU_EXPECTED_SIZE := 0x389
 endif
 
 ifndef KSU_EXPECTED_HASH
-KSU_EXPECTED_HASH := f415f4ed9435427e1fdf7f1fccd4dbc07b3d6b8751e4dbcec6f19671f427870b
+KSU_EXPECTED_HASH := 7844950b91267c624eb9e2a881b9f955b500a57f2307e26abb81be117723dc10
 endif
 
 ifdef KSU_MANAGER_PACKAGE
@@ -47,50 +45,27 @@ $(info -- KernelSU Manager signature hash: $(KSU_EXPECTED_HASH))
 ccflags-y += -DEXPECTED_SIZE=$(KSU_EXPECTED_SIZE)
 ccflags-y += -DEXPECTED_HASH=\"$(KSU_EXPECTED_HASH)\"
 
-# UL, look for "ext4_unregister_sysfs" on fs/ext4
-ifeq ($(shell grep -q "^extern void ext4_unregister_sysfs" $(srctree)/fs/ext4/ext4.h 2>/dev/null; echo $$?),0)
-ccflags-y += -DKSU_HAS_MODERN_EXT4
-endif
-
-# enable functions that use stuct filename when ksu_handle_execveat is found
-ifeq ($(shell grep -q "ksu_handle_execveat" $(srctree)/fs/exec.c; echo $$?),0)
-ccflags-y += -DKSU_USE_STRUCT_FILENAME
-endif
-
-ifeq ($(shell grep -q "ksu_handle_execveat" $(srctree)/arch/arm/kernel/sys_arm.c; echo $$?),0)
-ccflags-y += -DKSU_USE_STRUCT_FILENAME
+ifneq ($(shell grep -q "int path_umount" $(srctree)/fs/namespace.c; echo $$?),0)
+$(error You must backport path_umount - https://github.com/tiann/KernelSU/pull/1464 )
 endif
 
 ifneq ($(shell grep -q "get_cred_rcu" $(srctree)/include/linux/cred.h; echo $$?),0)
 $(error You must backport get_cred_rcu - https://github.com/tiann/KernelSU/pull/2320#issuecomment-2564232958 )
 endif
 
-ifeq ($(shell grep -q "int path_umount" $(srctree)/fs/namespace.c; echo $$?),0)
-$(info -- KernelSU/compat: path_umount found)
-ccflags-y += -DKSU_HAS_PATH_UMOUNT
-endif
-
-ifeq ($(shell grep -q "strncpy_from_user_nofault" $(srctree)/include/linux/uaccess.h; echo $$?),0)
-$(info -- KernelSU/compat: strncpy_from_user_nofault found)
-ccflags-y += -DKSU_STRNCPY_FROM_USER_NOFAULT
-endif
-
-ifeq ($(shell grep -q "strncpy_from_unsafe_user" $(srctree)/include/linux/uaccess.h; echo $$?),0)
-$(info -- KernelSU/compat: strncpy_from_unsafe_user found)
-ccflags-y += -DKSU_STRNCPY_FROM_UNSAFE_USER
+ifneq ($(shell grep -q "strncpy_from_user_nofault" $(srctree)/include/linux/uaccess.h; echo $$?),0)
+$(error You must backport strncpy_from_user_nofault - https://github.com/backslashxx/KernelSU/issues/4#issue-2818274642 )
 endif
 
 ifeq ($(shell grep -q "ssize_t kernel_read" $(srctree)/fs/read_write.c; echo $$?),0)
-$(info -- KernelSU/compat: newer kernel_read found)
-ccflags-y += -DKSU_NEW_KERNEL_READ
+ccflags-y += -DKSU_KERNEL_READ
 endif
 
 ifeq ($(shell grep "ssize_t kernel_write" $(srctree)/fs/read_write.c | grep -q "const void" ; echo $$?),0)
-$(info -- KernelSU/compat: newer kernel_write found)
-ccflags-y += -DKSU_NEW_KERNEL_WRITE
+ccflags-y += -DKSU_KERNEL_WRITE
 endif
 
-ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion
+ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
 
 # Keep a new line here!! Because someone may append config
