@@ -45,27 +45,50 @@ $(info -- KernelSU Manager signature hash: $(KSU_EXPECTED_HASH))
 ccflags-y += -DEXPECTED_SIZE=$(KSU_EXPECTED_SIZE)
 ccflags-y += -DEXPECTED_HASH=\"$(KSU_EXPECTED_HASH)\"
 
-ifneq ($(shell grep -q "int path_umount" $(srctree)/fs/namespace.c; echo $$?),0)
-$(error You must backport path_umount - https://github.com/tiann/KernelSU/pull/1464 )
+# UL, look for "ext4_unregister_sysfs" on fs/ext4
+ifeq ($(shell grep -q "^extern void ext4_unregister_sysfs" $(srctree)/fs/ext4/ext4.h 2>/dev/null; echo $$?),0)
+ccflags-y += -DKSU_HAS_MODERN_EXT4
+endif
+
+# enable functions that use stuct filename when ksu_handle_execveat is found
+ifeq ($(shell grep -q "ksu_handle_execveat" $(srctree)/fs/exec.c; echo $$?),0)
+ccflags-y += -DKSU_USE_STRUCT_FILENAME
+endif
+
+ifeq ($(shell grep -q "ksu_handle_execveat" $(srctree)/arch/arm/kernel/sys_arm.c; echo $$?),0)
+ccflags-y += -DKSU_USE_STRUCT_FILENAME
 endif
 
 ifneq ($(shell grep -q "get_cred_rcu" $(srctree)/include/linux/cred.h; echo $$?),0)
 $(error You must backport get_cred_rcu - https://github.com/tiann/KernelSU/pull/2320#issuecomment-2564232958 )
 endif
 
-ifneq ($(shell grep -q "strncpy_from_user_nofault" $(srctree)/include/linux/uaccess.h; echo $$?),0)
-$(error You must backport strncpy_from_user_nofault - https://github.com/backslashxx/KernelSU/issues/4#issue-2818274642 )
+ifeq ($(shell grep -q "int path_umount" $(srctree)/fs/namespace.c; echo $$?),0)
+$(info -- KernelSU/compat: path_umount found)
+ccflags-y += -DKSU_HAS_PATH_UMOUNT
+endif
+
+ifeq ($(shell grep -q "strncpy_from_user_nofault" $(srctree)/include/linux/uaccess.h; echo $$?),0)
+$(info -- KernelSU/compat: strncpy_from_user_nofault found)
+ccflags-y += -DKSU_STRNCPY_FROM_USER_NOFAULT
+endif
+
+ifeq ($(shell grep -q "strncpy_from_unsafe_user" $(srctree)/include/linux/uaccess.h; echo $$?),0)
+$(info -- KernelSU/compat: strncpy_from_unsafe_user found)
+ccflags-y += -DKSU_STRNCPY_FROM_UNSAFE_USER
 endif
 
 ifeq ($(shell grep -q "ssize_t kernel_read" $(srctree)/fs/read_write.c; echo $$?),0)
-ccflags-y += -DKSU_KERNEL_READ
+$(info -- KernelSU/compat: newer kernel_read found)
+ccflags-y += -DKSU_NEW_KERNEL_READ
 endif
 
 ifeq ($(shell grep "ssize_t kernel_write" $(srctree)/fs/read_write.c | grep -q "const void" ; echo $$?),0)
-ccflags-y += -DKSU_KERNEL_WRITE
+$(info -- KernelSU/compat: newer kernel_write found)
+ccflags-y += -DKSU_NEW_KERNEL_WRITE
 endif
 
-ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes
+ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
 
 # Keep a new line here!! Because someone may append config
