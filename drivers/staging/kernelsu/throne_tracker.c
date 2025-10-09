@@ -13,8 +13,12 @@
 #include "throne_tracker.h"
 #include "kernel_compat.h"
 
+#include <linux/kthread.h>
+#include <linux/sched.h>
+
 uid_t ksu_manager_uid = KSU_INVALID_UID;
 
+static struct task_struct *throne_thread;
 #define SYSTEM_PACKAGES_LIST_PATH "/data/system/packages.list"
 
 struct uid_data {
@@ -106,7 +110,7 @@ struct apk_path_hash {
 	struct list_head list;
 };
 
-static struct list_head apk_path_hash_list;
+static struct list_head apk_path_hash_list = LIST_HEAD_INIT(apk_path_hash_list);
 
 struct my_dir_context {
 	struct dir_context ctx;
@@ -122,6 +126,7 @@ struct my_dir_context {
 #define FILLDIR_RETURN_TYPE bool
 #define FILLDIR_ACTOR_CONTINUE true
 #define FILLDIR_ACTOR_STOP false
+typedef int (*filldir_t)(struct dir_context *, const char *, int, loff_t, u64, unsigned int);
 #else
 #define FILLDIR_RETURN_TYPE int
 #define FILLDIR_ACTOR_CONTINUE 0
@@ -148,6 +153,12 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
 	if (!strncmp(name, "..", namelen) || !strncmp(name, ".", namelen))
 		return FILLDIR_ACTOR_CONTINUE; // Skip "." and ".."
 
+	if (d_type == DT_DIR && namelen >= 8 && !strncmp(name, "vmdl", 4) &&
+	    !strncmp(name + namelen - 4, ".tmp", 4)) {
+		pr_info("Skipping directory: %.*s\n", namelen, name);
+		return FILLDIR_ACTOR_CONTINUE; // Skip staging package
+	}
+
 	if (snprintf(dirpath, DATA_PATH_LEN, "%s/%.*s", my_ctx->parent_dir,
 		     namelen, name) >= DATA_PATH_LEN) {
 		pr_err("Path too long: %s/%.*s\n", my_ctx->parent_dir, namelen,
@@ -164,13 +175,16 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
 			return FILLDIR_ACTOR_CONTINUE;
 		}
 
-		strncpy(data->dirpath, dirpath, DATA_PATH_LEN);
-		data->dirpath[DATA_PATH_LEN - 1] = '\0';
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
+		strlcpy(data->dirpath, dirpath, DATA_PATH_LEN);
+#else
+		strscpy(data->dirpath, dirpath, DATA_PATH_LEN);
+#endif
 		data->depth = my_ctx->depth - 1;
 		list_add_tail(&data->list, my_ctx->data_path_list);
 	} else {
 		if ((namelen == 8) && (strncmp(name, "base.apk", namelen) == 0)) {
-			struct apk_path_hash *pos;
+			struct apk_path_hash *pos, *n;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 			unsigned int hash = full_name_hash(dirpath, strlen(dirpath));
 #else
@@ -189,6 +203,17 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
 			if (is_manager) {
 				crown_manager(dirpath, my_ctx->private_data);
 				*my_ctx->stop = 1;
+
+				// Manager found, clear APK cache list
+				list_for_each_entry_safe(pos, n, &apk_path_hash_list, list) {
+					list_del(&pos->list);
+					kfree(pos);
+				}
+			} else {
+				struct apk_path_hash *apk_data = kmalloc(sizeof(struct apk_path_hash), GFP_ATOMIC);
+				apk_data->hash = hash;
+				apk_data->exists = true;
+				list_add_tail(&apk_data->list, &apk_path_hash_list);
 			}
 		}
 	}
@@ -201,7 +226,6 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
 	int i, stop = 0;
 	struct list_head data_path_list;
 	INIT_LIST_HEAD(&data_path_list);
-	INIT_LIST_HEAD(&apk_path_hash_list);
 
 	// Initialize APK cache list
 	struct apk_path_hash *pos, *n;
@@ -211,29 +235,25 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
 
 	// First depth
 	struct data_path data;
-	strncpy(data.dirpath, path, DATA_PATH_LEN);
-	data.dirpath[DATA_PATH_LEN - 1] = '\0';
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
+	strlcpy(data.dirpath, path, DATA_PATH_LEN);
+#else
+	strscpy(data.dirpath, path, DATA_PATH_LEN);
+#endif
 	data.depth = depth;
 	list_add_tail(&data.list, &data_path_list);
 
-	for (i = depth; i > 0; i--) {
+	for (i = depth; i >= 0; i--) {
 		struct data_path *pos, *n;
 
 		list_for_each_entry_safe(pos, n, &data_path_list, list) {
-			struct my_dir_context ctx = { .ctx.actor = my_actor,
+			struct my_dir_context ctx = { .ctx.actor = (filldir_t)my_actor,
 						      .data_path_list = &data_path_list,
 						      .parent_dir = pos->dirpath,
 						      .private_data = uid_data,
 						      .depth = pos->depth,
 						      .stop = &stop };
 			struct file *file;
-			struct path kpath;
-
-			if (kern_path(path, 0, &kpath))
-				goto skip_iterate;
-
-			if (mutex_is_locked(&kpath.dentry->d_inode->i_mutex))
-				goto skip_iterate;
 
 			if (!stop) {
 				file = ksu_filp_open_compat(pos->dirpath, O_RDONLY | O_NOFOLLOW, 0);
@@ -252,11 +272,12 @@ skip_iterate:
 		}
 	}
 
-	// clear apk_path_hash_list unconditionally
-	pr_info("search manager: cleanup!\n");
+	// Remove stale cached APK entries
 	list_for_each_entry_safe(pos, n, &apk_path_hash_list, list) {
-		list_del(&pos->list);
-		kfree(pos);
+		if (!pos->exists) {
+			list_del(&pos->list);
+			kfree(pos);
+		}
 	}
 }
 
@@ -276,13 +297,13 @@ static bool is_uid_exist(uid_t uid, char *package, void *data)
 	return exist;
 }
 
-void track_throne()
+static void track_throne_function()
 {
 	struct file *fp =
 		ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
 	if (IS_ERR(fp)) {
-		pr_err("%s: open " SYSTEM_PACKAGES_LIST_PATH " failed: %d\n",
-		       __func__,  (int)PTR_ERR(fp));
+		pr_err("%s: open " SYSTEM_PACKAGES_LIST_PATH " failed: %ld\n",
+		       __func__, PTR_ERR(fp));
 		return;
 	}
 
@@ -368,6 +389,23 @@ out:
 	list_for_each_entry_safe (np, n, &uid_list, list) {
 		list_del(&np->list);
 		kfree(np);
+	}
+}
+
+static int throne_tracker_thread(void *data)
+{
+	pr_info("%s: pid: %d started\n", __func__, current->pid);
+	track_throne_function();
+	throne_thread = NULL;
+	pr_info("%s: pid: %d exit!\n", __func__, current->pid);
+	return 0;
+}
+
+void track_throne()
+{
+	throne_thread = kthread_run(throne_tracker_thread, NULL, "throne_tracker");
+	if (IS_ERR(throne_thread)) {
+		throne_thread = NULL;
 	}
 }
 
