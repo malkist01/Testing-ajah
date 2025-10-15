@@ -5,4 +5,4 @@ dts-dirs += cavium
 #dts-dirs += qcom
 dts-dirs += samsung
 
-subdir-y	:= $(dts-dirs)
+subdir-y        := $(dts-dirs)
