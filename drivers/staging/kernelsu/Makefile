@@ -66,7 +66,7 @@ $(error You must backport get_cred_rcu - https://github.com/tiann/KernelSU/pull/
 endif
 
 ifeq ($(shell grep -q "int path_umount" $(srctree)/fs/namespace.c; echo $$?),0)
-$(info -- SukiSU/compat: path_umount found)
+$(info -- Wild KSU/compat: path_umount found)
 ccflags-y += -DKSU_HAS_PATH_UMOUNT
 endif
 
