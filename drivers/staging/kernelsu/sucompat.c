@@ -66,7 +66,6 @@ static char __user *ksud_user_path(void)
 }
 
 // every little bit helps here
-__attribute__((hot, no_stack_protector))
 static __always_inline bool is_su_allowed(const void **ptr_to_check)
 {
 	barrier();
