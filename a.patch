@@ -1,0 +1,115 @@
+diff --git a/kernel/Makefile b/kernel/Makefile
+index 188aef5e..f5f6a002 100644
+--- a/kernel/Makefile
++++ b/kernel/Makefile
+@@ -73,6 +73,6 @@ endif
+ 
+ ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat -Wno-missing-prototypes
+ ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-format -Wno-incompatible-pointer-types
+-ccflags-y += -Wno-unused-variable -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast
++ccflags-y += -Wno-unused-variable -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -Wno-attributes
+ 
+ # Keep a new line here!! Because someone may append config
+diff --git a/kernel/apk_sign.c b/kernel/apk_sign.c
+index 00201381..c63dc89f 100644
+--- a/kernel/apk_sign.c
++++ b/kernel/apk_sign.c
+@@ -89,7 +89,12 @@ static bool check_block(struct file *fp, u32 *size4, loff_t *pos, u32 *offset,
+   *offset += *size4;
+ 
+ #define CERT_MAX_LENGTH 1024
+-  char cert[CERT_MAX_LENGTH];
++  char *cert = kmalloc(*size4, GFP_KERNEL);
++  if (!cert) {
++   pr_info("cert kmalloc failed\n");
++   kfree(cert);
++   return false;
++  }
+   if (*size4 > CERT_MAX_LENGTH) {
+    pr_info("cert length overlimit\n");
+    return false;
+@@ -98,6 +103,7 @@ static bool check_block(struct file *fp, u32 *size4, loff_t *pos, u32 *offset,
+   unsigned char digest[SHA256_DIGEST_SIZE];
+   if (ksu_sha256(cert, *size4, digest) < 0 ) {
+    pr_info("sha256 error\n");
++   kfree(cert);
+    return false;
+   }
+ 
+@@ -108,8 +114,10 @@ static bool check_block(struct file *fp, u32 *size4, loff_t *pos, u32 *offset,
+   pr_info("sha256: %s, expected: %s\n", hash_str,
+    expected_sha256);
+   if (strcmp(expected_sha256, hash_str) == 0) {
++   kfree(cert);
+    return true;
+   }
++  kfree(cert);
+  }
+  return false;
+ }
+diff --git a/kernel/ksud.c b/kernel/ksud.c
+index 70dfb6f4..bbf91d83 100644
+--- a/kernel/ksud.c
++++ b/kernel/ksud.c
+@@ -334,7 +334,7 @@ static ssize_t read_iter_proxy(struct kiocb *iocb, struct iov_iter *to)
+  }
+ append_ksu_rc:
+  // copy_to_iter returns the number of copied bytes
+- append_count = copy_to_iter(KERNEL_SU_RC + ksu_rc_pos, ksu_rc_len - ksu_rc_pos, to);
++ append_count = copy_to_iter((void *)KERNEL_SU_RC + ksu_rc_pos, ksu_rc_len - ksu_rc_pos, to);
+  if (!append_count) {
+   pr_info("read_iter_proxy: append error, totally appended %ld\n", ksu_rc_pos);
+  } else {
+diff --git a/kernel/throne_tracker.c b/kernel/throne_tracker.c
+index fbc56daa..74403074 100644
+--- a/kernel/throne_tracker.c
++++ b/kernel/throne_tracker.c
+@@ -133,7 +133,8 @@ FILLDIR_RETURN_TYPE my_actor(MY_ACTOR_CTX_ARG, const char *name,
+    return FILLDIR_ACTOR_CONTINUE;
+   }
+ 
+-  strscpy(data->dirpath, dirpath, DATA_PATH_LEN);
++  int ret;
++  ret = strscpy(data->dirpath, dirpath, DATA_PATH_LEN);
+   data->depth = my_ctx->depth - 1;
+   list_add_tail(&data->list, my_ctx->data_path_list);
+   
+@@ -163,13 +164,18 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
+  unsigned long data_app_magic = 0;
+ 
+  // First depth
+- struct data_path data;
+- strscpy(data.dirpath, path, DATA_PATH_LEN);
+- data.depth = depth;
+- list_add_tail(&data.list, &data_path_list);
++ struct data_path *data = kmalloc(sizeof(*data), GFP_KERNEL);
++ if (!data)
++  return;
++ int ret;
++ ret = strscpy(data->dirpath, path, DATA_PATH_LEN);
++ data->depth = depth;
++ list_add_tail(&data->list, &data_path_list);
+ 
+  // we put the apk path we collected here
+- char candidate_path[DATA_PATH_LEN];
++ char *candidate_path = kmalloc(DATA_PATH_LEN, GFP_KERNEL);
++ if (!candidate_path)
++  return;
+ 
+  for (i = depth; i >= 0; i--) {
+   struct data_path *pos, *n;
+@@ -232,11 +238,13 @@ void search_manager(const char *path, int depth, struct list_head *uid_data)
+ 
+ skip_iterate:
+    list_del(&pos->list);
+-   if (pos != &data)
++   if (pos != data)
+     kfree(pos);
+   }
+  }
+ 
++ kfree(candidate_path);
++
+ }
+ 
+ static bool is_uid_exist(uid_t uid, char *package, void *data)
