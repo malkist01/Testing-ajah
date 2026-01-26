@@ -1,12 +1,17 @@
 #
-# Automatically generated file; DO NOT EDIT.
-# Linux/arm 3.18.140 Kernel Configuration
+# Automatically generated file; DO NOT EDIT# 
+# Linux/arm64 3.18.140 Kernel Configuration
 #
-CONFIG_KPROBES=no
+CONFIG_KPROBES=n
 #
 # KernelSU
 #
 CONFIG_KSU=y
+CONFIG_KSU_DEBUG=y
+CONFIG_KSU_THRONE_TRACKER_ALWAYS_THREADED=n
+# CONFIG_KSU_DEBUG is not set
+# CONFIG_KSU_ALLOWLIST_WORKAROUND is not set
+# CONFIG_KSU_LSM_SECURITY_HOOKS is not
 
 CONFIG_ARM=y
 CONFIG_ARM_HAS_SG_CHAIN=y
